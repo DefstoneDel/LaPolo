@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>La Polo du Myth - Simulateur de Crash et High Score</title>
+    <!-- Chargement de Tailwind CSS pour les classes utilitaires -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- STYLES CSS INTÉGRÉS (contenu de style.css) -->
+    <style>
+        /* Custom CSS for a racing game feel */
+        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&display=swap');
+        
+        body {
+            background-color: #1a1a2e; /* Deep purple background */
+            color: #ffffff;
+            font-family: 'Chakra Petch', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 768px;
+            background-color: #0f0f1c; /* Darker inner panel */
+            border: 4px solid #e94560; /* Racing red border */
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(233, 69, 96, 0.4);
+            text-align: center;
+        }
+
+        canvas {
+            display: block;
+            width: 100%; 
+            height: auto;
+            max-height: 400px;
+            background-color: #272744; 
+            border-radius: 10px;
+            margin: 20px auto;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Button Styles */
+        #start-button, .action-button, .auth-button {
+            transition: all 0.2s ease-in-out;
+            font-weight: 700;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        
+        #start-button {
+            background-color: #53bf9d; /* Teal/Green for GO */
+            color: #1a1a2e;
+            font-size: 1.25rem;
+            box-shadow: 0 4px #429a7e;
+        }
+        #start-button:hover:not(:disabled) {
+            background-color: #63d1ac;
+            transform: translateY(-2px);
+            box-shadow: 0 6px #429a7e;
+        }
+        #start-button:active:not(:disabled) {
+            transform: translateY(2px);
+            box-shadow: 0 2px #429a7e;
+        }
+
+        .action-button {
+            background-color: #4a5568; /* Gray for actions */
+            color: #ffffff;
+            box-shadow: 0 3px #3c4452;
+        }
+
+        .auth-button {
+            background-color: #e94560; /* Red for auth */
+            color: #ffffff;
+            box-shadow: 0 3px #cc3a52;
+        }
+
+        .disabled-button {
+            opacity: 0.6;
+            cursor: not-allowed;
+            background-color: #aaaaaa !important;
+            box-shadow: 0 4px #777777 !important;
+        }
+
+        .result-text {
+            min-height: 60px;
+        }
+
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: #0f0f1c;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 30px rgba(233, 69, 96, 0.6);
+        }
+
+        /* Responsive adjustments for mobile devices (< 640px) */
+        @media (max-width: 640px) {
+            .container {
+                padding: 20px 10px; 
+                margin: 10px; 
+                border-width: 2px; 
+            }
+            #start-button, .action-button, .auth-button {
+                font-size: 1rem;
+                padding: 10px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="flex justify-between items-center mb-6">
+        <div id="auth-status" class="text-sm font-medium text-gray-400 text-left">
+            Chargement...
+        </div>
+        <div>
+            <button id="auth-toggle" class="auth-button text-sm p-2 rounded-lg" onclick="showAuthModal(true)">
+                Connexion / Inscription
+            </button>
+        </div>
+    </div>
+    
+    <h1 class="text-3xl font-bold mb-2 text-pink-400">La Polo du Myth</h1>
+    <div id="high-score" class="text-xl font-extrabold mb-4 text-yellow-300">
+        Meilleur Score: 0 tours
+    </div>
+    <p class="mb-6 text-gray-300">Myth survivra-t-il dans sa Polo ? La course continue jusqu'à ce qu'il s'écrase !</p>
+
+    <div class="flex flex-col md:flex-row justify-center items-center gap-4 mb-6">
+        <button id="start-button" onclick="runSimulation()">
+            Démarrer la Course !
+        </button>
+        <p id="current-status" class="text-xl font-semibold text-yellow-300">Prêt</p>
+    </div>
+
+    <canvas id="race-track" width="600" height="300"></canvas>
+    
+    <div id="results" class="result-text mt-6 text-2xl font-extrabold">
+        <!-- Les résultats seront affichés ici -->
+    </div>
+
+    <!-- SECTION CLASSEMENT GLOBAL -->
+    <div class="mt-8">
+        <h2 class="text-2xl font-bold mb-4 text-yellow-400">🏆 Top 3 Mythes</h2>
+        <div id="leaderboard" class="bg-gray-800 p-4 rounded-lg shadow-inner">
+            <p class="text-gray-400">Chargement du classement...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Authentication Modal -->
+<div id="auth-modal" class="modal">
+    <div class="modal-content">
+        <h2 id="auth-title" class="text-2xl font-bold mb-4 text-pink-400">Connexion</h2>
+        <form id="auth-form" onsubmit="handleAuthSubmit(event)">
+            <!-- Champ Nom d'utilisateur (remplace l'email) -->
+            <input type="text" id="auth-username" placeholder="Nom d'utilisateur" required 
+                   class="w-full p-3 mb-3 bg-gray-700 text-white border border-gray-600 rounded-lg focus:ring-pink-500 focus:border-pink-500">
+            <!-- Champ Mot de passe -->
+            <input type="password" id="auth-password" placeholder="Mot de passe" required 
+                   class="w-full p-3 mb-4 bg-gray-700 text-white border border-gray-600 rounded-lg focus:ring-pink-500 focus:border-pink-500">
+            
+            <p id="auth-error" class="text-red-400 mb-4 h-6"></p>
+
+            <button type="submit" id="submit-button" class="action-button w-full mb-3">
+                Se Connecter
+            </button>
+
+            <button type="button" class="auth-button w-full" onclick="toggleAuthMode()">
+                Pas encore de compte ? S'inscrire
+            </button>
+
+            <button type="button" class="action-button w-full mt-3" onclick="showAuthModal(false)">
+                Annuler
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- LOGIQUE JAVASCRIPT INTÉGRÉE (contenu de script.js) -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // --- Firebase Setup (MANDATORY) ---
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+    let app;
+    let db;
+    let auth;
+    let userId = null;
+    let currentHighScore = 0;
+    let currentUsername = null; 
+    
+    // Game variables
+    const CRASH_CHANCE = 0.20; 
+    let isRacing = false;
+    let lapCount = 0;
+    let angle = 0; 
+    let anglePerFrame = 0.05; 
+    let crashLapNumber = -1; 
+    let animationFrameId;
+
+    // Canvas variables
+    const canvas = document.getElementById('race-track');
+    const ctx = canvas.getContext('2d');
+    const statusText = document.getElementById('current-status');
+    const resultsDiv = document.getElementById('results');
+    const startButton = document.getElementById('start-button');
+    const authStatusDiv = document.getElementById('auth-status');
+    const authToggleButton = document.getElementById('auth-toggle');
+    const highScoreDiv = document.getElementById('high-score');
+    const leaderboardDiv = document.getElementById('leaderboard'); 
+
+    let centerX, centerY, radiusX, radiusY;
+
+    // Auth Modal Elements
+    const authModal = document.getElementById('auth-modal');
+    const authTitle = document.getElementById('auth-title');
+    const authError = document.getElementById('auth-error');
+    const submitButton = document.getElementById('submit-button');
+    const authForm = document.getElementById('auth-form');
+    let isSigningUp = false;
+
+
+    // --- Firestore High Score Management (Private Data) ---
+
+    function getHighScoreDocRef() {
+        if (!db || !userId) return null;
+        // Private data path: /artifacts/{appId}/users/{userId}/game_data/high_score
+        return doc(db, 'artifacts', appId, 'users', userId, 'game_data', 'high_score');
+    }
+
+    async function fetchHighScore() {
+        if (!userId || !db) return 0;
+        try {
+            const docRef = getHighScoreDocRef();
+            const docSnap = await getDoc(docRef);
+
+            if (docSnap.exists()) {
+                currentHighScore = docSnap.data().maxLaps || 0;
+            } else {
+                currentHighScore = 0;
+            }
+            highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours`;
+            return currentHighScore;
+        } catch (error) {
+            console.error("Erreur lors de la récupération du score:", error);
+            return 0;
+        }
+    }
+
+    async function updateHighScore(newScore) {
+        if (!userId || !db) return;
+        
+        if (newScore > currentHighScore) {
+            try {
+                const docRef = getHighScoreDocRef();
+                await setDoc(docRef, { maxLaps: newScore }, { merge: true });
+                
+                currentHighScore = newScore;
+                highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours`;
+                console.log("Meilleur score mis à jour:", newScore);
+
+                // Update the global score only if authenticated (not anonymous) and username is set
+                if (auth.currentUser && !auth.currentUser.isAnonymous && currentUsername) {
+                     updateGlobalScore(newScore, currentUsername);
+                }
+
+            } catch (error) {
+                console.error("Erreur lors de la mise à jour du score:", error);
+            }
+        }
+    }
+
+    // --- Global Leaderboard Management (Public Data) ---
+
+    async function updateGlobalScore(newScore, username) {
+        if (!db || !auth.currentUser || !username) return;
+
+        try {
+            // Public data path: /artifacts/{appId}/public/data/global_high_scores/{userId}
+            const globalDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'global_high_scores', auth.currentUser.uid);
+            
+            const docSnap = await getDoc(globalDocRef);
+            const existingGlobalScore = docSnap.exists() ? docSnap.data().maxLaps : 0;
+
+            if (newScore > existingGlobalScore) {
+                await setDoc(globalDocRef, {
+                    userId: auth.currentUser.uid,
+                    username: username,
+                    maxLaps: newScore,
+                    updatedAt: new Date().toISOString()
+                });
+                console.log("Score global mis à jour:", newScore);
+                fetchGlobalLeaderboard(); 
+            }
+
+        } catch (error) {
+            console.error("Erreur lors de la mise à jour du score global:", error);
+        }
+    }
+    
+    async function fetchGlobalLeaderboard() {
+        if (!db) {
+            leaderboardDiv.innerHTML = '<p class="text-red-400">Erreur: Base de données non connectée.</p>';
+            return;
+        }
+
+        try {
+            const leaderboardCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'global_high_scores');
+            
+            // Query: order by maxLaps descending, limit to 3
+            // NOTE: orderBy is used here but might require index creation in a real project
+            const q = query(leaderboardCollectionRef, orderBy('maxLaps', 'desc'), limit(3));
+            const querySnapshot = await getDocs(q);
+
+            let html = '';
+            if (querySnapshot.empty) {
+                html = '<p class="text-gray-400">Aucun score enregistré. Soyez le premier !</p>';
+            } else {
+                querySnapshot.forEach((docSnap, index) => {
+                    const data = docSnap.data();
+                    const rank = index + 1;
+                    const medalColor = rank === 1 ? 'text-yellow-300' : rank === 2 ? 'text-gray-300' : 'text-yellow-600';
+                    const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉';
+                    
+                    // Highlight the current user if they are on the leaderboard
+                    const highlightClass = (data.userId === userId && auth.currentUser && !auth.currentUser.isAnonymous) ? 'bg-pink-800/50' : 'hover:bg-gray-700/50';
+
+                    html += `
+                        <div class="flex justify-between items-center p-3 my-1 rounded-lg ${highlightClass}">
+                            <span class="text-xl font-extrabold ${medalColor}">${rankIcon} #${rank}</span>
+                            <span class="text-lg font-semibold">${data.username || 'Utilisateur inconnu'}</span>
+                            <span class="text-lg font-bold text-teal-400">${data.maxLaps} tours</span>
+                        </div>
+                    `;
+                });
+            }
+            leaderboardDiv.innerHTML = html;
+
+        } catch (error) {
+            console.error("Erreur lors de la récupération du classement:", error);
+            leaderboardDiv.innerHTML = '<p class="text-red-400">Erreur lors du chargement du classement.</p>';
+        }
+    }
+
+
+    // --- Firestore Profile Management ---
+
+    async function fetchUserProfile(uid) {
+        try {
+            const profileDocRef = doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data');
+            const docSnap = await getDoc(profileDocRef);
+            return docSnap.exists() ? docSnap.data().username : null;
+        } catch (error) {
+            console.error("Erreur lors de la récupération du profil:", error);
+            return null;
+        }
+    }
+
+    async function saveUserProfile(uid, username) {
+        try {
+            const profileDocRef = doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data');
+            await setDoc(profileDocRef, { username: username, createdAt: new Date().toISOString() });
+        } catch (error) {
+            console.error("Erreur lors de la sauvegarde du profil:", error);
+        }
+    }
+
+
+    // --- Authentication Logic ---
+
+    function updateAuthUI(user) {
+        if (user) {
+            userId = user.uid;
+            
+            // 1. Fetch the username for display
+            fetchUserProfile(user.uid).then(username => {
+                currentUsername = username;
+                const displayId = username || 'Anonyme';
+                authStatusDiv.innerHTML = `Connecté comme : <span class="text-pink-400">${displayId}</span>`;
+            });
+            
+            // 2. Update UI controls
+            authToggleButton.textContent = 'Déconnexion';
+            authToggleButton.classList.remove('auth-button');
+            authToggleButton.classList.add('action-button');
+            authToggleButton.onclick = signOutUser;
+            
+            // 3. Load game data
+            fetchHighScore(); 
+            // FIX: Assurez-vous de charger le classement global seulement après l'authentification
+            fetchGlobalLeaderboard(); 
+        } else {
+            userId = null;
+            currentUsername = null;
+            currentHighScore = 0;
+            authStatusDiv.textContent = 'Non connecté. Connectez-vous pour sauvegarder votre score.';
+            
+            authToggleButton.textContent = 'Connexion / Inscription';
+            authToggleButton.classList.remove('action-button');
+            authToggleButton.classList.add('auth-button');
+            authToggleButton.onclick = () => showAuthModal(true);
+            
+            highScoreDiv.textContent = 'Meilleur Score: 0 tours';
+        }
+    }
+
+    async function initializeFirebase() {
+        if (Object.keys(firebaseConfig).length === 0) {
+            authStatusDiv.textContent = 'Erreur: Firebase non configuré.';
+            return;
+        }
+        
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app); 
+
+        // Listen for auth state changes
+        onAuthStateChanged(auth, updateAuthUI);
+
+        // REMOVED: fetchGlobalLeaderboard() call from here. It is now in updateAuthUI.
+
+        // Sign in using custom token or anonymously
+        try {
+            if (initialAuthToken) {
+                await signInWithCustomToken(auth, initialAuthToken);
+            } else {
+                // Anonymous sign-in allows basic access and Firestore operations
+                await signInAnonymously(auth);
+            }
+        } catch (error) {
+            console.error("Erreur d'authentification initiale:", error);
+            try {
+                await signInAnonymously(auth);
+            } catch (e) {
+                console.error("Erreur de connexion anonyme:", e);
+                authStatusDiv.textContent = 'Erreur d\'authentification.';
+            }
+        }
+    }
+
+    window.showAuthModal = (show) => {
+        authModal.style.display = show ? 'flex' : 'none';
+        authError.textContent = '';
+        if (show) {
+             isSigningUp = false;
+             authTitle.textContent = 'Connexion';
+             submitButton.textContent = 'Se Connecter';
+             document.getElementById('auth-username').value = ''; 
+             document.getElementById('auth-password').value = '';
+        }
+    };
+
+    window.toggleAuthMode = () => {
+        isSigningUp = !isSigningUp;
+        authTitle.textContent = isSigningUp ? 'Inscription' : 'Connexion';
+        submitButton.textContent = isSigningUp ? 'S\'inscrire' : 'Se Connecter';
+        
+        const toggleButton = authForm ? authForm.querySelector('button:nth-of-type(2)') : null;
+        
+        if (toggleButton) {
+            toggleButton.textContent = isSigningUp ? 'Déjà un compte ? Se Connecter' : 'Pas encore de compte ? S\'inscrire';
+        } else {
+             console.error("Impossible de trouver le bouton bascule d'authentification.");
+        }
+        authError.textContent = '';
+    };
+
+    window.handleAuthSubmit = async (event) => {
+        event.preventDefault();
+        const username = document.getElementById('auth-username').value.trim();
+        const password = document.getElementById('auth-password').value;
+        authError.textContent = '';
+        
+        if (username.length < 3) {
+            authError.textContent = 'Le nom d\'utilisateur doit contenir au moins 3 caractères.';
+            return;
+        }
+        
+        if (!auth) {
+            authError.textContent = 'Erreur de connexion : La base de données n\'est pas encore prête. Veuillez réessayer.';
+            console.error("Auth object is null during submission.");
+            return;
+        }
+
+        // Use a mock email based on the username and app ID
+        const mockEmail = username + '@' + appId + '.myth.com';
+
+        try {
+            let userCredential;
+            if (isSigningUp) {
+                userCredential = await createUserWithEmailAndPassword(auth, mockEmail, password);
+                await saveUserProfile(userCredential.user.uid, username);
+                console.log("Inscription réussie!");
+            } else {
+                userCredential = await signInWithEmailAndPassword(auth, mockEmail, password);
+                console.log("Connexion réussie!");
+            }
+            showAuthModal(false);
+        } catch (error) {
+            console.error("Erreur d'authentification:", error);
+            let errorMessage = "Erreur inconnue. Vérifiez votre nom d'utilisateur et mot de passe.";
+            
+            if (error.code && error.code.includes('auth/')) {
+                if (error.code === 'auth/weak-password') errorMessage = 'Le mot de passe doit contenir au moins 6 caractères.';
+                if (error.code === 'auth/email-already-in-use') errorMessage = 'Ce nom d\'utilisateur est déjà utilisé. Veuillez vous connecter.';
+                if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') errorMessage = 'Nom d\'utilisateur ou mot de passe incorrect.';
+            }
+            authError.textContent = errorMessage;
+        }
+    };
+
+    window.signOutUser = async () => {
+        try {
+            if (auth) {
+                await signOut(auth);
+                await signInAnonymously(auth);
+                console.log("Déconnexion réussie et connexion anonyme.");
+                fetchGlobalLeaderboard(); 
+            }
+        } catch (error) {
+            console.error("Erreur de déconnexion:", error);
+        }
+    };
+
+
+    // --- Drawing Functions ---
+
+    function resizeCanvas() {
+        const parent = canvas.parentElement;
+        const desiredWidth = parent.clientWidth;
+        const desiredHeight = desiredWidth / 2; 
+
+        canvas.width = desiredWidth > 600 ? 600 : desiredWidth;
+        canvas.height = desiredHeight > 300 ? 300 : desiredHeight;
+
+        centerX = canvas.width / 2;
+        centerY = canvas.height / 2;
+        radiusX = centerX * 0.7; 
+        radiusY = centerY * 0.7; 
+        
+        if (!isRacing) {
+            drawTrack(false);
+        }
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+
+    function drawTrack(isCrashed = false) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 1. Draw Racing Green Grass (infield)
+        ctx.fillStyle = '#272744';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 2. Draw Outer Track Boundary (White Line)
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = 15;
+        ctx.ellipse(centerX, centerY, radiusX + 15, radiusY + 15, 0, 0, 2 * Math.PI);
+        ctx.stroke();
+
+        // 3. Draw Track Surface (Asphalt)
+        ctx.beginPath();
+        ctx.fillStyle = '#3c4048'; // Dark asphalt gray
+        ctx.ellipse(centerX, centerY, radiusX + 5, radiusY + 5, 0, 0, 2 * Math.PI);
+        ctx.fill();
+
+        // 4. Draw Inner Track Boundary (White Line)
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = 10;
+        
+        const innerRadiusX = Math.max(1, radiusX - 10);
+        const innerRadiusY = Math.max(1, radiusY - 10);
+        
+        ctx.ellipse(centerX, centerY, innerRadiusX, innerRadiusY, 0, 0, 2 * Math.PI);
+        ctx.stroke();
+
+        // 5. Draw Start/Finish Line (Red/White stripes)
+        const startX = centerX + radiusX;
+        const startY = centerY;
+        
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = 'white';
+        ctx.beginPath();
+        ctx.moveTo(startX, startY - 15);
+        ctx.lineTo(startX, startY + 15);
+        ctx.stroke();
+        
+        ctx.strokeStyle = '#e94560'; // Red
+        ctx.beginPath();
+        ctx.moveTo(startX, startY - 10);
+        ctx.lineTo(startX, startY + 10);
+        ctx.stroke();
+
+        // 6. Draw Car
+        let currentAngle = angle;
+        
+        // Calculate car position on the ellipse
+        const carX = centerX + radiusX * Math.cos(currentAngle);
+        const carY = centerY + radiusY * Math.sin(currentAngle);
+
+        // Calculate car rotation (tangent to the ellipse path)
+        const dx = -radiusX * Math.sin(currentAngle);
+        const dy = radiusY * Math.cos(currentAngle);
+        const rotation = Math.atan2(dy, dx);
+
+        ctx.save();
+        ctx.translate(carX, carY);
+        ctx.rotate(rotation);
+
+        if (isCrashed) {
+            // Apply crash transformation
+            const crashJitterX = Math.random() * 8 - 4;
+            const crashJitterY = Math.random() * 8 - 4;
+            ctx.rotate(Math.PI / 8); 
+            ctx.translate(crashJitterX, crashJitterY);
+        }
+
+        // Car Body (The "Polo") - Set to Dark Green or Red if crashed
+        ctx.fillStyle = isCrashed ? '#ff0000' : '#1e4620';
+        ctx.fillRect(-15, -8, 30, 16);
+        
+        // Cabin
+        ctx.fillStyle = '#222222';
+        ctx.fillRect(-5, -6, 10, 8); 
+
+        // Headlights (only if not crashed)
+        if (!isCrashed) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(12, -6, 3, 2);
+            ctx.fillRect(12, 4, 3, 2);
+        }
+
+        // Wheels
+        ctx.fillStyle = '#333333';
+        ctx.beginPath();
+        ctx.arc(-10, -8, 4, 0, 2 * Math.PI); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(-10, 8, 4, 0, 2 * Math.PI); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(10, -8, 4, 0, 2 * Math.PI); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(10, 8, 4, 0, 2 * Math.PI); ctx.fill();
+
+        ctx.restore();
+
+        // Draw Crash Smoke/Particles if crashed
+        if (isCrashed) {
+            for(let i = 0; i < 20; i++) {
+                const smokeX = carX + (Math.random() - 0.5) * 40;
+                const smokeY = carY + (Math.random() - 0.5) * 40;
+                const smokeRadius = Math.random() * 10 + 5;
+                ctx.fillStyle = `rgba(150, 150, 150, ${Math.random() * 0.6})`;
+                ctx.beginPath();
+                ctx.arc(smokeX, smokeY, smokeRadius, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+    }
+
+    // --- Simulation Core Logic ---
+
+    function gameLoop() {
+        if (!isRacing) {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            return;
+        }
+
+        angle += anglePerFrame;
+
+        // Check for lap completion
+        if (angle >= (lapCount + 1) * 2 * Math.PI) {
+            
+            lapCount++; // Completed the lap
+            statusText.textContent = `Tour ${lapCount}`; 
+
+            // Dynamic Crash Check
+            if (Math.random() < CRASH_CHANCE) {
+                crashLapNumber = lapCount;
+                endSimulation(true);
+                return;
+            }
+        }
+        
+        drawTrack();
+        
+        animationFrameId = requestAnimationFrame(gameLoop);
+    }
+
+    window.runSimulation = () => {
+        if (isRacing) return;
+
+        if (!auth) {
+            resultsDiv.classList.add('text-red-400');
+            resultsDiv.innerHTML = `⚠️ Veuillez patienter, la base de données est en cours de chargement...`;
+            return;
+        }
+
+        if (!auth.currentUser || !auth.currentUser.uid) { // Check for UID presence
+            resultsDiv.classList.add('text-red-400');
+            resultsDiv.innerHTML = `⚠️ Veuillez patienter, l'authentification est en cours...`;
+            return;
+        }
+
+        // 1. Reset State
+        isRacing = true;
+        lapCount = 0;
+        angle = 0;
+        crashLapNumber = -1; 
+        resultsDiv.innerHTML = '';
+        
+        // 2. Update UI
+        startButton.disabled = true;
+        startButton.classList.add('disabled-button');
+        startButton.textContent = 'COURSE EN COURS...';
+        statusText.textContent = `Tour 1`; 
+
+        // 3. Start Loop
+        animationFrameId = requestAnimationFrame(gameLoop);
+    };
+
+    function endSimulation(crashed) {
+        isRacing = false;
+        
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+
+        if (crashed) {
+            drawTrack(true); 
+            resultsDiv.classList.remove('text-green-400');
+            resultsDiv.classList.add('text-red-400');
+            resultsDiv.innerHTML = `🚨 **CRASH !** Myth s'est écrasé au Tour ${crashLapNumber} ! 💔`;
+
+            // High Score Check and Update
+            updateHighScore(crashLapNumber); 
+        } 
+        
+        // Reset button UI after a delay
+        setTimeout(() => {
+            startButton.disabled = false;
+            startButton.classList.remove('disabled-button');
+            startButton.textContent = 'Démarrer une nouvelle course !';
+            statusText.textContent = 'Course Terminée';
+        }, 1500);
+    }
+
+    // --- Initialization ---
+
+    // Initialize the canvas size and draw the initial state on load
+    window.onload = function() {
+        resizeCanvas();
+        drawTrack();
+        initializeFirebase();
+    }
+</script>
+
+</body>
+</html>
