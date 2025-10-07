@@ -208,9 +208,38 @@
     import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // --- Firebase Setup (MANDATORY) ---
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+    // ⚠️ ATTENTION : SI VOUS EXÉCUTEZ CE CODE HORS DU CANVAS (ex: sur GitHub), 
+    // VEUILLEZ REMPLACER LES CHAÎNES VIDES ("") CI-DESSOUS PAR VOTRE CONFIGURATION FIREBASE RÉELLE 
+    // POUR ACTIVER LA SAUVEGARDE ET LE CLASSEMENT GLOBAL.
+
+    // 1. DÉFINISSEZ VOTRE CONFIGURATION ICI :
+    const GITHUB_FIREBASE_CONFIG = {
+        apiKey: "AIzaSyBsWugLEz2bu5xjbR5VtYXMr7cUhD6ycEE", // CLÉ REQUISE pour la sauvegarde
+        authDomain: "lapolo-5351b.firebaseapp.com",
+        projectId: "polo-myth-github", 
+        storageBucket: "lapolo-5351b.firebasestorage.app",
+        messagingSenderId: "1031146720807",
+        appId: "1:1031146720807:web:6324e1b371bbb953410802"
+    };
+    const GITHUB_APP_ID = GITHUB_FIREBASE_CONFIG.projectId || 'local-github-app';
+
+
+    // 2. LOGIQUE DE SÉLECTION DE LA CONFIGURATION :
+    // Vérifie si nous sommes dans l'environnement Canvas (où les variables sont injectées)
+    const isCanvas = typeof __app_id !== 'undefined';
+    
+    const appId = isCanvas ? __app_id : GITHUB_APP_ID;
+    const firebaseConfig = isCanvas 
+        ? JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}')
+        : GITHUB_FIREBASE_CONFIG;
+    // Le token d'authentification personnalisé n'est PAS disponible en dehors du Canvas.
+    const initialAuthToken = isCanvas ? (typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null) : null;
+    
+    // Détecte si nous sommes sur GitHub et que l'apiKey est vide (mode local/sécurisé)
+    const isGithubPlaceholder = !isCanvas && (firebaseConfig.apiKey === "AIzaSyBsWugLEz2bu5xjbR5VtYXMr7cUhD6ycEE" || !firebaseConfig.apiKey);
+    
+    // --------------------------------------------------------------------------------
+
 
     let app;
     let db;
@@ -259,7 +288,7 @@
     }
 
     async function fetchHighScore() {
-        if (!userId || !db) return 0;
+        if (isGithubPlaceholder || !userId || !db) return 0;
         try {
             const docRef = getHighScoreDocRef();
             const docSnap = await getDoc(docRef);
@@ -278,7 +307,12 @@
     }
 
     async function updateHighScore(newScore) {
-        if (!userId || !db) return;
+        if (isGithubPlaceholder || !userId || !db) {
+             console.warn("Sauvegarde des scores ignorée : Firebase non configuré ou mode local.");
+             currentHighScore = Math.max(currentHighScore, newScore); // Update local best score for the session
+             highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours (Local)`;
+             return;
+        }
         
         if (newScore > currentHighScore) {
             try {
@@ -303,7 +337,7 @@
     // --- Global Leaderboard Management (Public Data) ---
 
     async function updateGlobalScore(newScore, username) {
-        if (!db || !auth.currentUser || !username) return;
+        if (isGithubPlaceholder || !db || !auth.currentUser || !username) return;
 
         try {
             // Public data path: /artifacts/{appId}/public/data/global_high_scores/{userId}
@@ -329,8 +363,8 @@
     }
     
     async function fetchGlobalLeaderboard() {
-        if (!db) {
-            leaderboardDiv.innerHTML = '<p class="text-red-400">Erreur: Base de données non connectée.</p>';
+        if (isGithubPlaceholder || !db) {
+            leaderboardDiv.innerHTML = '<p class="text-yellow-500">Le classement est désactivé. Configurez Firebase pour le voir.</p>';
             return;
         }
 
@@ -376,6 +410,7 @@
     // --- Firestore Profile Management ---
 
     async function fetchUserProfile(uid) {
+        if (isGithubPlaceholder || !db) return null;
         try {
             const profileDocRef = doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data');
             const docSnap = await getDoc(profileDocRef);
@@ -387,6 +422,7 @@
     }
 
     async function saveUserProfile(uid, username) {
+        if (isGithubPlaceholder || !db) return;
         try {
             const profileDocRef = doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data');
             await setDoc(profileDocRef, { username: username, createdAt: new Date().toISOString() });
@@ -399,25 +435,34 @@
     // --- Authentication Logic ---
 
     function updateAuthUI(user) {
+        if (isGithubPlaceholder) {
+            authStatusDiv.textContent = 'Mode Local (Scores non sauvegardés).';
+            authToggleButton.textContent = 'Connexion (Désactivée)';
+            authToggleButton.disabled = true;
+            authToggleButton.classList.add('disabled-button');
+            highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours (Local)`;
+            return;
+        }
+
         if (user) {
             userId = user.uid;
             
             // 1. Fetch the username for display
             fetchUserProfile(user.uid).then(username => {
                 currentUsername = username;
-                const displayId = username || 'Anonyme';
+                const displayId = username || (user.isAnonymous ? 'Anonyme' : 'Utilisateur');
                 authStatusDiv.innerHTML = `Connecté comme : <span class="text-pink-400">${displayId}</span>`;
             });
             
             // 2. Update UI controls
             authToggleButton.textContent = 'Déconnexion';
-            authToggleButton.classList.remove('auth-button');
+            authToggleButton.classList.remove('auth-button', 'disabled-button');
             authToggleButton.classList.add('action-button');
+            authToggleButton.disabled = false;
             authToggleButton.onclick = signOutUser;
             
             // 3. Load game data
             fetchHighScore(); 
-            // FIX: Assurez-vous de charger le classement global seulement après l'authentification
             fetchGlobalLeaderboard(); 
         } else {
             userId = null;
@@ -426,8 +471,9 @@
             authStatusDiv.textContent = 'Non connecté. Connectez-vous pour sauvegarder votre score.';
             
             authToggleButton.textContent = 'Connexion / Inscription';
-            authToggleButton.classList.remove('action-button');
+            authToggleButton.classList.remove('action-button', 'disabled-button');
             authToggleButton.classList.add('auth-button');
+            authToggleButton.disabled = false;
             authToggleButton.onclick = () => showAuthModal(true);
             
             highScoreDiv.textContent = 'Meilleur Score: 0 tours';
@@ -435,22 +481,29 @@
     }
 
     async function initializeFirebase() {
-        if (Object.keys(firebaseConfig).length === 0) {
-            authStatusDiv.textContent = 'Erreur: Firebase non configuré.';
+        if (isGithubPlaceholder) {
+            console.warn("⚠️ Mode GitHub sans configuration Firebase : La sauvegarde des scores et l'authentification sont désactivées.");
+            // Set up local state and UI, then exit
+            updateAuthUI(null); 
             return;
         }
         
-        app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app); 
+        // Ensure configuration is valid before attempting connection
+        if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.apiKey) {
+            console.error("Erreur: Configuration Firebase incomplète.");
+            authStatusDiv.textContent = 'ERREUR FIREBASE. Configuration manquante. Vérifiez la console.';
+            return;
+        }
 
-        // Listen for auth state changes
-        onAuthStateChanged(auth, updateAuthUI);
-
-        // REMOVED: fetchGlobalLeaderboard() call from here. It is now in updateAuthUI.
-
-        // Sign in using custom token or anonymously
         try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app); 
+
+            // Listen for auth state changes
+            onAuthStateChanged(auth, updateAuthUI);
+
+            // Sign in using custom token or anonymously
             if (initialAuthToken) {
                 await signInWithCustomToken(auth, initialAuthToken);
             } else {
@@ -458,17 +511,18 @@
                 await signInAnonymously(auth);
             }
         } catch (error) {
-            console.error("Erreur d'authentification initiale:", error);
-            try {
-                await signInAnonymously(auth);
-            } catch (e) {
-                console.error("Erreur de connexion anonyme:", e);
-                authStatusDiv.textContent = 'Erreur d\'authentification.';
-            }
+            console.error("Erreur fatale lors de l'initialisation de Firebase:", error);
+            authStatusDiv.textContent = 'ERREUR FIREBASE FATALE. Vérifiez la console et votre configuration.';
+            db = null;
+            auth = null;
         }
     }
 
     window.showAuthModal = (show) => {
+        if (isGithubPlaceholder) {
+            // Cannot open modal if Auth is disabled
+            return;
+        }
         authModal.style.display = show ? 'flex' : 'none';
         authError.textContent = '';
         if (show) {
@@ -501,17 +555,16 @@
         const password = document.getElementById('auth-password').value;
         authError.textContent = '';
         
+        if (isGithubPlaceholder || !auth) {
+            authError.textContent = 'Erreur: La base de données n\'est pas configurée pour l\'authentification.';
+            return;
+        }
+
         if (username.length < 3) {
             authError.textContent = 'Le nom d\'utilisateur doit contenir au moins 3 caractères.';
             return;
         }
         
-        if (!auth) {
-            authError.textContent = 'Erreur de connexion : La base de données n\'est pas encore prête. Veuillez réessayer.';
-            console.error("Auth object is null during submission.");
-            return;
-        }
-
         // Use a mock email based on the username and app ID
         const mockEmail = username + '@' + appId + '.myth.com';
 
@@ -540,13 +593,12 @@
     };
 
     window.signOutUser = async () => {
+        if (isGithubPlaceholder || !auth) return;
         try {
-            if (auth) {
-                await signOut(auth);
-                await signInAnonymously(auth);
-                console.log("Déconnexion réussie et connexion anonyme.");
-                fetchGlobalLeaderboard(); 
-            }
+            await signOut(auth);
+            await signInAnonymously(auth);
+            console.log("Déconnexion réussie et connexion anonyme.");
+            fetchGlobalLeaderboard(); 
         } catch (error) {
             console.error("Erreur de déconnexion:", error);
         }
@@ -723,15 +775,10 @@
     window.runSimulation = () => {
         if (isRacing) return;
 
-        if (!auth) {
+        // Basic check for auth readiness (even in placeholder mode, we need a userId mock)
+        if (!userId) { 
             resultsDiv.classList.add('text-red-400');
-            resultsDiv.innerHTML = `⚠️ Veuillez patienter, la base de données est en cours de chargement...`;
-            return;
-        }
-
-        if (!auth.currentUser || !auth.currentUser.uid) { // Check for UID presence
-            resultsDiv.classList.add('text-red-400');
-            resultsDiv.innerHTML = `⚠️ Veuillez patienter, l'authentification est en cours...`;
+            resultsDiv.innerHTML = `⚠️ Veuillez patienter, l'application est en cours d'initialisation...`;
             return;
         }
 
@@ -766,7 +813,7 @@
             resultsDiv.classList.add('text-red-400');
             resultsDiv.innerHTML = `🚨 **CRASH !** Myth s'est écrasé au Tour ${crashLapNumber} ! 💔`;
 
-            // High Score Check and Update
+            // High Score Check and Update (Handles local/remote logic internally)
             updateHighScore(crashLapNumber); 
         } 
         
