@@ -46,7 +46,7 @@
         }
 
         /* Button Styles */
-        #start-button, .action-button, .auth-button {
+        #start-button, .action-button, .auth-button, .select-input {
             transition: all 0.2s ease-in-out;
             font-weight: 700;
             padding: 12px 30px;
@@ -116,6 +116,30 @@
             box-shadow: 0 10px 30px rgba(233, 69, 96, 0.6);
         }
 
+        /* Select Input Styling */
+        .select-input {
+            appearance: none; /* Remove default browser styling */
+            background-color: #4a5568; /* Match action button */
+            color: #ffffff;
+            font-size: 1rem;
+            text-align: center;
+            line-height: 1.5;
+            min-width: 150px;
+            height: 48px; /* Match button height */
+            box-shadow: 0 3px #3c4452;
+            cursor: pointer;
+            outline: none;
+            border: 1px solid #3c4452;
+        }
+        .select-input:hover {
+            background-color: #5a667b;
+        }
+        .select-input option {
+            background-color: #0f0f1c; /* Dark background for options */
+            color: #ffffff;
+        }
+
+
         /* Responsive adjustments for mobile devices (< 640px) */
         @media (max-width: 640px) {
             .container {
@@ -123,9 +147,10 @@
                 margin: 10px; 
                 border-width: 2px; 
             }
-            #start-button, .action-button, .auth-button {
+            #start-button, .action-button, .auth-button, .select-input {
                 font-size: 1rem;
                 padding: 10px 20px;
+                width: 100%; /* Make select full width on small screens */
             }
         }
     </style>
@@ -134,21 +159,38 @@
 
 <div class="container">
     <div class="flex justify-between items-center mb-6">
-        <!-- MODIFIED: auth-status now includes a span for the name and a button to edit -->
         <div id="auth-status" class="text-sm font-medium text-gray-400 text-left flex items-center">
             <span>Chargement...</span>
             <button id="edit-username-button" class="ml-2 text-pink-400 hover:text-pink-300 text-xs font-bold py-1 px-2 rounded-md border border-pink-400 hidden" onclick="showEditUsernameModal()">Modifier</button>
         </div>
         <div>
-            <!-- Removed the old "Connexion / Inscription" button -->
+            <!-- No auth toggle anymore -->
         </div>
     </div>
     
     <h1 class="text-3xl font-bold mb-2 text-pink-400">La Polo du Myth</h1>
     <div id="high-score" class="text-xl font-extrabold mb-4 text-yellow-300">
-        Meilleur Score: 0 tours
+        Plus Grande Distance: 0m (Temps au tour: N/A)
     </div>
     <p class="mb-6 text-gray-300">Myth survivra-t-il dans sa Polo ? La course continue jusqu'à ce qu'il s'écrase !</p>
+
+    <!-- Beer Selection and current game parameters display -->
+    <div class="flex flex-col md:flex-row justify-center items-center gap-4 mb-6">
+        <label for="beer-select" class="text-lg font-semibold text-gray-300">Bières bues:</label>
+        <select id="beer-select" class="select-input" onchange="handleBeerSelection(this.value)">
+            <option value="0">0 Bière</option>
+            <option value="1">1 Bière</option>
+            <option value="2">2 Bières</option>
+            <option value="3">3 Bières</option>
+            <option value="4">4 Bières</option>
+            <option value="5">5 Bières</option>
+        </select>
+    </div>
+    <div id="game-stats" class="mb-6 text-gray-400 text-sm">
+        <p>Chance de Crash: <span id="current-crash-chance">20.00%</span></p>
+        <p>Temps au tour estimé: <span id="estimated-lap-time">4.000s</span></p>
+    </div>
+    <!-- END NEW -->
 
     <div class="flex flex-col md:flex-row justify-center items-center gap-4 mb-6">
         <button id="start-button" onclick="runSimulation()">
@@ -165,16 +207,13 @@
 
     <!-- SECTION CLASSEMENT GLOBAL -->
     <div class="mt-8">
-        <h2 class="text-2xl font-bold mb-4 text-yellow-400">🏆 Top 3 Mythes</h2>
+        <h2 class="text-2xl font-bold mb-4 text-yellow-400">🏆 Top Mythes</h2>
         <div id="leaderboard" class="bg-gray-800 p-4 rounded-lg shadow-inner">
             <p class="text-gray-400">Chargement du classement...</p>
         </div>
     </div>
 </div>
 
-<!-- Removed the old Authentication Modal -->
-
-<!-- NEW: Edit Username Modal -->
 <div id="edit-username-modal" class="modal">
     <div class="modal-content">
         <h2 class="text-2xl font-bold mb-4 text-pink-400">Choisir un Nom d'Utilisateur</h2>
@@ -192,10 +231,9 @@
     </div>
 </div>
 
-<!-- LOGIQUE JAVASCRIPT INTÉGRÉE (contenu de script.js) -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"; // Removed signInWithCustomToken, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut
+    import { getAuth, signInAnonymously, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // --- Firebase Setup (MANDATORY) ---
@@ -216,7 +254,6 @@
 
 
     // 2. LOGIQUE DE SÉLECTION DE LA CONFIGURATION :
-    // Vérifie si nous sommes dans l'environnement Canvas (où les variables sont injectées)
     const isCanvas = typeof __app_id !== 'undefined';
     
     const appId = isCanvas 
@@ -225,12 +262,8 @@
     const firebaseConfig = isCanvas 
         ? JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}')
         : GITHUB_FIREBASE_CONFIG;
-    // Le token d'authentification personnalisé n'est PAS disponible en dehors du Canvas.
-    // initialAuthToken is no longer used, as we're solely relying on anonymous sign-in now.
     const initialAuthToken = null; 
     
-    // MODIFIED: This condition now correctly identifies an *actual* placeholder or missing key.
-    // Your provided API key is now treated as a valid configuration.
     const isGithubPlaceholder = !isCanvas && (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY_GOES_HERE");
     
     // --------------------------------------------------------------------------------
@@ -240,17 +273,32 @@
     let db;
     let auth;
     let userId = null;
-    let currentHighScore = 0;
+    let currentHighestDistanceMeters = 0; // MODIFIED: Renamed from currentHighScore
+    let currentFastestLapTime = Infinity; 
     let currentUsername = null; 
     
-    // Game variables
-    const CRASH_CHANCE = 0.20; 
+    // Game constants for new mechanics
+    const METERS_PER_LAP = 100; // 1 lap equals 100 meters
+    const BASE_CRASH_CHANCE = 0.20; // 20% crash chance with 0 beers
+    const BEER_EFFECT_PER_BEER = 0.07; // 7% increase in crash chance AND speed per beer
+    const BASE_LAP_TIME_SECONDS = 4.0; // 4 seconds per lap with 0 beers
+
+    // Game variables - now dynamically adjusted
+    let selectedBeers = 0; 
+    let currentCrashChance = BASE_CRASH_CHANCE; 
+    let currentEffectiveLapTimeSeconds = BASE_LAP_TIME_SECONDS; 
+
     let isRacing = false;
-    let lapCount = 0;
+    let lapCount = 0; // Still useful for full laps
+    let totalDistanceMeters = 0; // NEW: Cumulative distance in current simulation
+    let lastCheckedDistanceMarker = 0; // NEW: To track crash check points (0m, 50m, 100m within current lap)
+
     let angle = 0; 
-    let anglePerFrame = 0.05; 
-    let crashLapNumber = -1; 
+    let anglePerFrame = 0.0; 
     let animationFrameId;
+
+    let lapStartTime = 0; 
+    let simulationFastestLapTime = Infinity; 
 
     // Canvas variables
     const canvas = document.getElementById('race-track');
@@ -259,68 +307,113 @@
     const resultsDiv = document.getElementById('results');
     const startButton = document.getElementById('start-button');
     const authStatusDiv = document.getElementById('auth-status');
-    // Removed authToggleButton
     const highScoreDiv = document.getElementById('high-score');
     const leaderboardDiv = document.getElementById('leaderboard'); 
     const editUsernameButton = document.getElementById('edit-username-button'); 
 
+    // UI elements for game parameters
+    const beerSelect = document.getElementById('beer-select');
+    const currentCrashChanceSpan = document.getElementById('current-crash-chance');
+    const estimatedLapTimeSpan = document.getElementById('estimated-lap-time');
+
+
     let centerX, centerY, radiusX, radiusY;
 
-    // Removed Auth Modal Elements
-
-    // NEW: Edit Username Modal Elements
     const editUsernameModal = document.getElementById('edit-username-modal');
     const newUsernameInput = document.getElementById('new-username-input');
     const usernameError = document.getElementById('username-error');
+
+    // --- Function to update game parameters based on beer selection ---
+    function updateGameParameters() {
+        selectedBeers = parseInt(beerSelect.value);
+
+        // Calculate current crash chance
+        currentCrashChance = BASE_CRASH_CHANCE + (selectedBeers * BEER_EFFECT_PER_BEER);
+        currentCrashChance = Math.max(0, Math.min(1.0, currentCrashChance)); // Cap between 0 and 1
+        currentCrashChanceSpan.textContent = `${(currentCrashChance * 100).toFixed(2)}%`;
+
+        // Calculate effective lap time (speed increase means lower time)
+        const speedModifier = (selectedBeers * BEER_EFFECT_PER_BEER);
+        currentEffectiveLapTimeSeconds = BASE_LAP_TIME_SECONDS * (1 - speedModifier);
+        currentEffectiveLapTimeSeconds = Math.max(3.0, currentEffectiveLapTimeSeconds); // Ensure minimum 3.0s lap
+        estimatedLapTimeSpan.textContent = `${currentEffectiveLapTimeSeconds.toFixed(3)}s`;
+
+        // Recalculate anglePerFrame based on the new effective lap time
+        // 60 frames per second is standard for requestAnimationFrame
+        anglePerFrame = (2 * Math.PI) / (currentEffectiveLapTimeSeconds * 60);
+
+        console.log(`Beers: ${selectedBeers}, Crash Chance: ${currentCrashChance.toFixed(2)}, Effective Lap Time: ${currentEffectiveLapTimeSeconds.toFixed(3)}s, Angle per frame: ${anglePerFrame.toFixed(5)}`);
+    }
+
+    // Event handler for beer selection dropdown
+    window.handleBeerSelection = (value) => {
+        updateGameParameters();
+    };
 
 
     // --- Firestore High Score Management (Private Data) ---
 
     function getHighScoreDocRef() {
         if (!db || !userId) return null;
-        // Private data path: /artifacts/{appId}/users/{userId}/game_data/high_score
         return doc(db, 'artifacts', appId, 'users', userId, 'game_data', 'high_score');
     }
 
     async function fetchHighScore() {
-        if (isGithubPlaceholder || !userId || !db) return 0;
+        if (isGithubPlaceholder || !userId || !db) return;
         try {
             const docRef = getHighScoreDocRef();
             const docSnap = await getDoc(docRef);
 
             if (docSnap.exists()) {
-                currentHighScore = docSnap.data().maxLaps || 0;
+                const data = docSnap.data();
+                currentHighestDistanceMeters = data.maxDistanceMeters || 0; // MODIFIED field name
+                currentFastestLapTime = data.fastestLapTime || Infinity;
             } else {
-                currentHighScore = 0;
+                currentHighestDistanceMeters = 0;
+                currentFastestLapTime = Infinity;
             }
-            highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours`;
-            return currentHighScore;
+            updateHighScoreDisplay(); 
         } catch (error) {
             console.error("Erreur lors de la récupération du score:", error);
-            return 0;
+            currentHighestDistanceMeters = 0;
+            currentFastestLapTime = Infinity;
+            updateHighScoreDisplay();
         }
     }
 
-    async function updateHighScore(newScore) {
+    // Function to update the personal high score text
+    function updateHighScoreDisplay() {
+        let distanceText = `Plus Grande Distance: ${currentHighestDistanceMeters.toFixed(0)}m`;
+        let timeText = `Temps au tour: ${currentFastestLapTime === Infinity ? 'N/A' : currentFastestLapTime.toFixed(3) + 's'}`;
+        highScoreDiv.textContent = `${distanceText} (${timeText})`;
+    }
+
+
+    async function updateHighScore(newDistance, newFastestTime) { // MODIFIED: newDistance instead of newScore (laps)
         if (isGithubPlaceholder || !userId || !db) {
              console.warn("Sauvegarde des scores ignorée : Firebase non configuré ou mode local.");
-             currentHighScore = Math.max(currentHighScore, newScore); // Update local best score for the session
-             highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours (Local)`;
+             currentHighestDistanceMeters = Math.max(currentHighestDistanceMeters, newDistance);
+             currentFastestLapTime = Math.min(currentFastestLapTime, newFastestTime);
+             updateHighScoreDisplay(); 
              return;
         }
         
-        if (newScore > currentHighScore) {
+        // Logic to update: higher distance OR same distance with better time
+        if (newDistance > currentHighestDistanceMeters || (newDistance === currentHighestDistanceMeters && newFastestTime < currentFastestLapTime)) {
             try {
                 const docRef = getHighScoreDocRef();
-                await setDoc(docRef, { maxLaps: newScore }, { merge: true });
+                await setDoc(docRef, { 
+                    maxDistanceMeters: newDistance, // MODIFIED field name
+                    fastestLapTime: newFastestTime 
+                }, { merge: true });
                 
-                currentHighScore = newScore;
-                highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours`;
-                console.log("Meilleur score mis à jour:", newScore);
+                currentHighestDistanceMeters = newDistance;
+                currentFastestLapTime = newFastestTime;
+                updateHighScoreDisplay(); 
+                console.log("Meilleur score mis à jour:", newDistance.toFixed(0), "m, Fastest Lap Time:", newFastestTime.toFixed(3));
 
-                // MODIFIED: Update the global score if *any* user (anonymous or not) has a username set
                 if (auth.currentUser && currentUsername) {
-                     updateGlobalScore(newScore, currentUsername);
+                     updateGlobalScore(newDistance, newFastestTime, currentUsername);
                 }
 
             } catch (error) {
@@ -331,25 +424,32 @@
 
     // --- Global Leaderboard Management (Public Data) ---
 
-    async function updateGlobalScore(newScore, username) {
-        // MODIFIED: Simplified check - now only needs db, current user, and provided username
+    async function updateGlobalScore(newDistance, newFastestTime, username) { // MODIFIED: newDistance
         if (isGithubPlaceholder || !db || !auth.currentUser || !username) return; 
 
         try {
-            // Public data path: /artifacts/{appId}/public/data/global_high_scores/{userId}
             const globalDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'global_high_scores', auth.currentUser.uid);
             
             const docSnap = await getDoc(globalDocRef);
-            const existingGlobalScore = docSnap.exists() ? docSnap.data().maxLaps : 0;
+            let existingGlobalMaxDistanceMeters = 0; // MODIFIED field name
+            let existingGlobalFastestTime = Infinity;
 
-            if (newScore > existingGlobalScore) {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                existingGlobalMaxDistanceMeters = data.maxDistanceMeters || 0; // MODIFIED field name
+                existingGlobalFastestTime = data.fastestLapTime || Infinity;
+            }
+
+            // Logic to update global entry: higher distance OR same distance with better time
+            if (newDistance > existingGlobalMaxDistanceMeters || (newDistance === existingGlobalMaxDistanceMeters && newFastestTime < existingGlobalFastestTime)) {
                 await setDoc(globalDocRef, {
                     userId: auth.currentUser.uid,
                     username: username,
-                    maxLaps: newScore,
+                    maxDistanceMeters: newDistance, // MODIFIED field name
+                    fastestLapTime: newFastestTime, 
                     updatedAt: new Date().toISOString()
                 });
-                console.log("Score global mis à jour:", newScore);
+                console.log("Score global mis à jour:", newDistance.toFixed(0), "m, Fastest Lap Time:", newFastestTime.toFixed(3));
                 fetchGlobalLeaderboard(); 
             }
 
@@ -367,56 +467,55 @@
         try {
             const leaderboardCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'global_high_scores');
             
-            // Query: order by maxLaps descending, limit to 10 (or adjust as desired)
-            const q = query(leaderboardCollectionRef, orderBy('maxLaps', 'desc'), limit(10));
+            // MODIFIED: Order by maxDistanceMeters DESC, then fastestLapTime ASC
+            // IMPORTANT: This query will require a composite index in your Firebase console:
+            // Collection: global_high_scores, Fields: maxDistanceMeters (Descending), fastestLapTime (Ascending)
+            const q = query(leaderboardCollectionRef, orderBy('maxDistanceMeters', 'desc'), orderBy('fastestLapTime', 'asc'), limit(10));
             const querySnapshot = await getDocs(q);
 
             let html = '';
             if (querySnapshot.empty) {
                 html = '<p class="text-gray-400">Aucun score enregistré. Soyez le premier !</p>';
             } else {
-                // FIX: Changed from forEach to a traditional for loop to ensure 'i' is always a number
                 for (let i = 0; i < querySnapshot.docs.length; i++) {
-                    const docSnap = querySnapshot.docs[i]; // Get the document snapshot
+                    const docSnap = querySnapshot.docs[i];
                     const data = docSnap.data();
                     
-                    // The 'i' from the for loop is guaranteed to be a sequential number (0, 1, 2...)
-                    const rank = i + 1; // Calculate rank from this reliable index
+                    const rank = i + 1;
 
-                    // Debugging line (can be removed after verification)
-                    console.log(`DEBUG: Leaderboard entry - loop index: ${i}, calculated rank: ${rank}, username: ${data.username || 'Unknown'}, score: ${data.maxLaps}`);
+                    console.log(`DEBUG: Leaderboard entry - loop index: ${i}, calculated rank: ${rank}, username: ${data.username || 'Unknown'}, distance: ${data.maxDistanceMeters}, fastestTime: ${data.fastestLapTime}`);
 
-                    // --- Start Medal and Rank Display Logic ---
                     let displayRankString;
                     let medalColorClass;
 
                     if (rank === 1) {
-                        displayRankString = '🥇 #1'; // Gold medal for the best
+                        displayRankString = '🥇 #1';
                         medalColorClass = 'text-yellow-300';
                     } else if (rank === 2) {
-                        displayRankString = '🥈 #2'; // Silver medal for the second best
-                        medalColorClass = 'text-gray-300'; // Tailwind gray-300 for silver look
+                        displayRankString = '🥈 #2';
+                        medalColorClass = 'text-gray-300';
                     } else if (rank === 3) {
-                        displayRankString = '🥉 #3'; // Bronze medal for the third best
-                        medalColorClass = 'text-amber-500'; // Tailwind amber for bronze look
+                        displayRankString = '🥉 #3';
+                        medalColorClass = 'text-amber-500';
                     } else {
-                        // For ranks beyond 3, just display the number
                         displayRankString = `#${rank}`;
-                        medalColorClass = 'text-gray-400'; // Default color for other ranks
+                        medalColorClass = 'text-gray-400';
                     }
-                    // --- End Medal and Rank Display Logic ---
                     
-                    // Highlight the current user if they are on the leaderboard
                     const highlightClass = (data.userId === userId && auth.currentUser) ? 'bg-pink-800/50' : 'hover:bg-gray-700/50';
+                    
+                    const fastestTimeDisplay = data.fastestLapTime === Infinity || data.fastestLapTime === undefined ? 'N/A' : data.fastestLapTime.toFixed(3) + 's';
+                    // MODIFIED: Display maxDistanceMeters
+                    const distanceDisplay = data.maxDistanceMeters === undefined ? '0' : data.maxDistanceMeters.toFixed(0);
 
                     html += `
                         <div class="flex justify-between items-center p-3 my-1 rounded-lg ${highlightClass}">
                             <span class="text-xl font-extrabold ${medalColorClass}">${displayRankString}</span>
                             <span class="text-lg font-semibold">${data.username || 'Utilisateur inconnu'}</span>
-                            <span class="text-lg font-bold text-teal-400">${data.maxLaps} tours</span>
+                            <span class="text-lg font-bold text-teal-400">${distanceDisplay}m <span class="text-gray-400 text-base">(${fastestTimeDisplay})</span></span>
                         </div>
                     `;
-                } // End of for loop
+                }
             }
             leaderboardDiv.innerHTML = html;
 
@@ -445,7 +544,7 @@
         if (isGithubPlaceholder || !db) return;
         try {
             const profileDocRef = doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data');
-            await setDoc(profileDocRef, { username: username, createdAt: new Date().toISOString() }, { merge: true }); // Merge true to not overwrite other fields
+            await setDoc(profileDocRef, { username: username, createdAt: new Date().toISOString() }, { merge: true });
         } catch (error) {
             console.error("Erreur lors de la sauvegarde du profil:", error);
         }
@@ -457,8 +556,8 @@
     function updateAuthUI(user) {
         if (isGithubPlaceholder) {
             authStatusDiv.querySelector('span').textContent = 'Mode Local (Scores non sauvegardés).';
-            editUsernameButton.style.display = 'none'; // Hide edit button in placeholder mode
-            highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours (Local)`;
+            editUsernameButton.style.display = 'none';
+            updateHighScoreDisplay(); 
             return;
         }
 
@@ -466,25 +565,22 @@
             userId = user.uid;
             
             fetchUserProfile(user.uid).then(username => {
-                currentUsername = username; // Update currentUsername from profile
+                currentUsername = username;
                 
                 authStatusDiv.querySelector('span').innerHTML = `Connecté comme : <span class="text-pink-400">${username || 'Anonyme'}</span>`;
-                editUsernameButton.style.display = 'inline-block'; // Always show edit button for anonymous users
+                editUsernameButton.style.display = 'inline-block';
             });
             
-            // 2. No main auth toggle anymore, only for editing username
-            
-            // 3. Load game data
             fetchHighScore(); 
             fetchGlobalLeaderboard(); 
         } else {
-            // User is not logged in, but anonymous auto-signin should prevent this state
             userId = null;
             currentUsername = null;
-            currentHighScore = 0;
+            currentHighestDistanceMeters = 0; // Reset highest distance
+            currentFastestLapTime = Infinity; 
             authStatusDiv.querySelector('span').textContent = 'Non connecté. Connectez-vous pour sauvegarder votre score.';
-            highScoreDiv.textContent = 'Meilleur Score: 0 tours';
-            editUsernameButton.style.display = 'none'; // Hide edit button if not logged in
+            updateHighScoreDisplay(); 
+            editUsernameButton.style.display = 'none';
         }
     }
 
@@ -495,7 +591,6 @@
             return;
         }
         
-        // Ensure configuration is valid before attempting connection
         if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.apiKey) {
             console.error("Erreur: Configuration Firebase incomplète.");
             authStatusDiv.querySelector('span').textContent = 'ERREUR FIREBASE. Configuration manquante. Vérifiez la console.';
@@ -507,20 +602,20 @@
             db = getFirestore(app);
             auth = getAuth(app); 
 
-            // Listen for auth state changes
             onAuthStateChanged(auth, async (user) => {
                 if (!user) {
-                    // If no user is logged in (e.g., after a manual clear storage), sign in anonymously immediately
                     await signInAnonymously(auth);
                 } else {
                     updateAuthUI(user);
                 }
             });
 
-            // Ensure an anonymous user is signed in right away if not already
             if (!auth.currentUser) {
                  await signInAnonymously(auth);
             }
+            
+            updateGameParameters();
+
         } catch (error) {
             console.error("Erreur fatale lors de l'initialisation de Firebase:", error);
             authStatusDiv.querySelector('span').textContent = 'ERREUR FIREBASE FATALE. Vérifiez la console et votre configuration.';
@@ -529,15 +624,9 @@
         }
     }
 
-    // Removed window.showAuthModal, window.toggleAuthMode, window.handleAuthSubmit
-
-    // window.signOutUser is no longer directly exposed via a button, but could be used internally if needed.
-    // For this anonymous-first flow, users don't "sign out" in the traditional sense.
-
-    // NEW: Functions for Edit Username Modal
     window.showEditUsernameModal = () => {
         if (isGithubPlaceholder || !auth.currentUser) return;
-        newUsernameInput.value = currentUsername || ''; // Pre-fill with current name if available
+        newUsernameInput.value = currentUsername || '';
         usernameError.textContent = '';
         editUsernameModal.style.display = 'flex';
     };
@@ -551,7 +640,7 @@
             usernameError.textContent = 'Le nom d\'utilisateur doit contenir entre 3 et 20 caractères.';
             return;
         }
-        if (newUsername === currentUsername) { // No change
+        if (newUsername === currentUsername) {
             editUsernameModal.style.display = 'none';
             return;
         }
@@ -559,9 +648,9 @@
         try {
             if (auth.currentUser && auth.currentUser.uid) {
                 await saveUserProfile(auth.currentUser.uid, newUsername);
-                currentUsername = newUsername; // Update local state
-                updateAuthUI(auth.currentUser); // Refresh UI to show new name
-                fetchGlobalLeaderboard(); // Refresh leaderboard with new name (uses currentUsername)
+                currentUsername = newUsername;
+                updateAuthUI(auth.currentUser);
+                fetchGlobalLeaderboard();
                 editUsernameModal.style.display = 'none';
                 console.log("Nom d'utilisateur mis à jour:", newUsername);
             }
@@ -710,7 +799,7 @@
 
     // --- Simulation Core Logic ---
 
-    function gameLoop() {
+    function gameLoop(timestamp) {
         if (!isRacing) {
             if (animationFrameId) {
                 cancelAnimationFrame(animationFrameId);
@@ -718,49 +807,80 @@
             return;
         }
 
+        const prevAngle = angle;
         angle += anglePerFrame;
 
-        // Check for lap completion
-        if (angle >= (lapCount + 1) * 2 * Math.PI) {
-            
-            lapCount++; // Completed the lap
-            statusText.textContent = `Tour ${lapCount}`; 
+        // Calculate current progress within the current lap in meters
+        const currentLapProgressRadians = angle % (2 * Math.PI);
+        const metersIntoCurrentLap = (currentLapProgressRadians / (2 * Math.PI)) * METERS_PER_LAP;
 
-            // Dynamic Crash Check
-            if (Math.random() < CRASH_CHANCE) {
-                crashLapNumber = lapCount;
-                endSimulation(true);
-                return;
+        const prevTotalDistanceMeters = totalDistanceMeters; 
+        totalDistanceMeters = (lapCount * METERS_PER_LAP) + metersIntoCurrentLap;
+
+        // Check for crash at 50m intervals (including end of lap)
+        // We only check if we *crossed* a specific 50m/100m threshold in this frame
+        for (let checkPoint = 50; checkPoint <= METERS_PER_LAP; checkPoint += 50) {
+            const thresholdDistanceInLap = checkPoint;
+            
+            // Calculate the absolute distance for this checkpoint in the current lap
+            const absoluteThresholdDistance = (lapCount * METERS_PER_LAP) + thresholdDistanceInLap;
+            
+            // Check if we just crossed this threshold AND haven't checked for this specific checkpoint in this lap yet
+            if (totalDistanceMeters >= absoluteThresholdDistance && prevTotalDistanceMeters < absoluteThresholdDistance) {
+                console.log(`Checking crash at ${absoluteThresholdDistance.toFixed(2)}m (threshold: ${thresholdDistanceInLap}m into lap)`);
+                if (Math.random() < currentCrashChance) {
+                    console.log(`Crash occurred at ${totalDistanceMeters.toFixed(2)}m!`);
+                    endSimulation(true); 
+                    return; 
+                }
             }
         }
-        
+
+        // Check for lap completion (now mainly for lapCount and recording fastest lap time)
+        const currentLapCeilingRadians = (lapCount + 1) * (2 * Math.PI);
+        if (angle >= currentLapCeilingRadians && prevAngle < currentLapCeilingRadians) {
+            const lapElapsedTime = (performance.now() - lapStartTime) / 1000;
+            simulationFastestLapTime = Math.min(simulationFastestLapTime, lapElapsedTime);
+
+            lapCount++;
+            lapStartTime = performance.now(); // Reset lap start time for the next lap
+        }
+
+        statusText.textContent = `Distance: ${totalDistanceMeters.toFixed(2)}m`; 
         drawTrack();
-        
         animationFrameId = requestAnimationFrame(gameLoop);
     };
 
     window.runSimulation = () => {
         if (isRacing) return;
 
-        // Basic check for auth readiness (even in placeholder mode, we need a userId mock)
         if (!userId) { 
             resultsDiv.classList.add('text-red-400');
             resultsDiv.innerHTML = `⚠️ Veuillez patienter, l'application est en cours d'initialisation...`;
             return;
         }
 
-        // 1. Reset State
+        // Disable beer selection during race
+        beerSelect.disabled = true;
+        beerSelect.classList.add('disabled-button');
+
+        // 1. Reset State for new simulation
         isRacing = true;
         lapCount = 0;
+        totalDistanceMeters = 0; // Reset total distance
+        lastCheckedDistanceMarker = 0; // Reset crash check marker
         angle = 0;
-        crashLapNumber = -1; 
         resultsDiv.innerHTML = '';
+        simulationFastestLapTime = Infinity; // Reset fastest lap for this simulation
         
         // 2. Update UI
         startButton.disabled = true;
         startButton.classList.add('disabled-button');
         startButton.textContent = 'COURSE EN COURS...';
-        statusText.textContent = `Tour 1`; 
+        statusText.textContent = `Distance: 0.00m`; 
+
+        // Set initial lap start time
+        lapStartTime = performance.now();
 
         // 3. Start Loop
         animationFrameId = requestAnimationFrame(gameLoop);
@@ -778,14 +898,14 @@
             drawTrack(true); 
             resultsDiv.classList.remove('text-green-400');
             resultsDiv.classList.add('text-red-400');
-            resultsDiv.innerHTML = `🚨 **CRASH !** Myth s'est écrasé au Tour ${crashLapNumber} ! 💔`;
+            resultsDiv.innerHTML = `🚨 **CRASH !** Myth s'est écrasé après ${totalDistanceMeters.toFixed(2)}m ! 💔<br><span>Meilleur temps au tour de la simulation: ${simulationFastestLapTime === Infinity ? 'N/A' : simulationFastestLapTime.toFixed(3) + 's'}</span>`;
 
-            // High Score Check and Update (Handles local/remote logic internally)
-            updateHighScore(crashLapNumber); 
+            updateHighScore(totalDistanceMeters, simulationFastestLapTime); 
         } 
         
-        // Reset button UI after a delay
         setTimeout(() => {
+            beerSelect.disabled = false;
+            beerSelect.classList.remove('disabled-button');
             startButton.disabled = false;
             startButton.classList.remove('disabled-button');
             startButton.textContent = 'Démarrer une nouvelle course !';
@@ -795,7 +915,6 @@
 
     // --- Initialization ---
 
-    // Initialize the canvas size and draw the initial state on load
     window.onload = function() {
         resizeCanvas();
         drawTrack();
