@@ -134,10 +134,13 @@
 
 <div class="container">
     <div class="flex justify-between items-center mb-6">
-        <div id="auth-status" class="text-sm font-medium text-gray-400 text-left">
-            Chargement...
+        <!-- MODIFIED: auth-status now includes a span for the name and a button to edit -->
+        <div id="auth-status" class="text-sm font-medium text-gray-400 text-left flex items-center">
+            <span>Chargement...</span>
+            <button id="edit-username-button" class="ml-2 text-pink-400 hover:text-pink-300 text-xs font-bold py-1 px-2 rounded-md border border-pink-400 hidden" onclick="showEditUsernameModal()">Modifier</button>
         </div>
         <div>
+            <!-- This button remains for explicit email/password login/signup -->
             <button id="auth-toggle" class="auth-button text-sm p-2 rounded-lg" onclick="showAuthModal(true)">
                 Connexion / Inscription
             </button>
@@ -172,7 +175,7 @@
     </div>
 </div>
 
-<!-- Authentication Modal -->
+<!-- Authentication Modal (for Email/Password login/signup) -->
 <div id="auth-modal" class="modal">
     <div class="modal-content">
         <h2 id="auth-title" class="text-2xl font-bold mb-4 text-pink-400">Connexion</h2>
@@ -195,6 +198,24 @@
             </button>
 
             <button type="button" class="action-button w-full mt-3" onclick="showAuthModal(false)">
+                Annuler
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- NEW: Edit Username Modal -->
+<div id="edit-username-modal" class="modal">
+    <div class="modal-content">
+        <h2 class="text-2xl font-bold mb-4 text-pink-400">Choisir un Nom d'Utilisateur</h2>
+        <form id="username-form" onsubmit="handleUsernameEditSubmit(event)">
+            <input type="text" id="new-username-input" placeholder="Votre Nom d'Utilisateur" required minlength="3" maxlength="20"
+                   class="w-full p-3 mb-3 bg-gray-700 text-white border border-gray-600 rounded-lg focus:ring-pink-500 focus:border-pink-500">
+            <p id="username-error" class="text-red-400 mb-4 h-6"></p>
+            <button type="submit" class="action-button w-full mb-3">
+                Sauvegarder
+            </button>
+            <button type="button" class="auth-button w-full" onclick="document.getElementById('edit-username-modal').style.display='none'">
                 Annuler
             </button>
         </form>
@@ -235,10 +256,9 @@
     // Le token d'authentification personnalisé n'est PAS disponible en dehors du Canvas.
     const initialAuthToken = isCanvas ? (typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null) : null;
     
-    // Détecte si nous sommes sur GitHub et que l'apiKey est vide (mode local/sécurisé)
-    // --- MODIFICATION APPLIQUÉE ICI ---
+    // MODIFIED: This condition now correctly identifies an *actual* placeholder or missing key.
+    // Your provided API key is now treated as a valid configuration.
     const isGithubPlaceholder = !isCanvas && (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY_GOES_HERE");
-    // --- FIN DE LA MODIFICATION ---
     
     // --------------------------------------------------------------------------------
 
@@ -269,6 +289,7 @@
     const authToggleButton = document.getElementById('auth-toggle');
     const highScoreDiv = document.getElementById('high-score');
     const leaderboardDiv = document.getElementById('leaderboard'); 
+    const editUsernameButton = document.getElementById('edit-username-button'); // NEW
 
     let centerX, centerY, radiusX, radiusY;
 
@@ -279,6 +300,11 @@
     const submitButton = document.getElementById('submit-button');
     const authForm = document.getElementById('auth-form');
     let isSigningUp = false;
+
+    // NEW: Edit Username Modal Elements
+    const editUsernameModal = document.getElementById('edit-username-modal');
+    const newUsernameInput = document.getElementById('new-username-input');
+    const usernameError = document.getElementById('username-error');
 
 
     // --- Firestore High Score Management (Private Data) ---
@@ -325,8 +351,8 @@
                 highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours`;
                 console.log("Meilleur score mis à jour:", newScore);
 
-                // Update the global score only if authenticated (not anonymous) and username is set
-                if (auth.currentUser && !auth.currentUser.isAnonymous && currentUsername) {
+                // MODIFIED: Update the global score if *any* user (anonymous or not) has a username set
+                if (auth.currentUser && currentUsername) {
                      updateGlobalScore(newScore, currentUsername);
                 }
 
@@ -339,7 +365,8 @@
     // --- Global Leaderboard Management (Public Data) ---
 
     async function updateGlobalScore(newScore, username) {
-        if (isGithubPlaceholder || !db || !auth.currentUser || !username) return;
+        // MODIFIED: Simplified check - now only needs db, current user, and provided username
+        if (isGithubPlaceholder || !db || !auth.currentUser || !username) return; 
 
         try {
             // Public data path: /artifacts/{appId}/public/data/global_high_scores/{userId}
@@ -389,7 +416,7 @@
                     const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉';
                     
                     // Highlight the current user if they are on the leaderboard
-                    const highlightClass = (data.userId === userId && auth.currentUser && !auth.currentUser.isAnonymous) ? 'bg-pink-800/50' : 'hover:bg-gray-700/50';
+                    const highlightClass = (data.userId === userId && auth.currentUser) ? 'bg-pink-800/50' : 'hover:bg-gray-700/50';
 
                     html += `
                         <div class="flex justify-between items-center p-3 my-1 rounded-lg ${highlightClass}">
@@ -438,25 +465,33 @@
 
     function updateAuthUI(user) {
         if (isGithubPlaceholder) {
-            authStatusDiv.textContent = 'Mode Local (Scores non sauvegardés).';
+            authStatusDiv.querySelector('span').textContent = 'Mode Local (Scores non sauvegardés).';
             authToggleButton.textContent = 'Connexion (Désactivée)';
             authToggleButton.disabled = true;
             authToggleButton.classList.add('disabled-button');
             highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours (Local)`;
+            editUsernameButton.style.display = 'none'; // Hide edit button in placeholder mode
             return;
         }
 
         if (user) {
             userId = user.uid;
             
-            // 1. Fetch the username for display
             fetchUserProfile(user.uid).then(username => {
                 currentUsername = username;
-                const displayId = username || (user.isAnonymous ? 'Anonyme' : 'Utilisateur');
-                authStatusDiv.innerHTML = `Connecté comme : <span class="text-pink-400">${displayId}</span>`;
+                
+                // MODIFIED: Display for anonymous users with or without a set username
+                if (user.isAnonymous) {
+                    authStatusDiv.querySelector('span').innerHTML = `Connecté comme : <span class="text-pink-400">${username || 'Anonyme'}</span>`;
+                    editUsernameButton.style.display = 'inline-block'; // Show edit button for anonymous users
+                } else {
+                    // For persistent users (email/password), show their name or email
+                    authStatusDiv.querySelector('span').innerHTML = `Connecté comme : <span class="text-pink-400">${username || user.email || 'Utilisateur'}</span>`;
+                    editUsernameButton.style.display = 'none'; // Hide edit button for persistent users
+                }
             });
             
-            // 2. Update UI controls
+            // 2. Update UI controls for main auth button
             authToggleButton.textContent = 'Déconnexion';
             authToggleButton.classList.remove('auth-button', 'disabled-button');
             authToggleButton.classList.add('action-button');
@@ -467,10 +502,11 @@
             fetchHighScore(); 
             fetchGlobalLeaderboard(); 
         } else {
+            // User is not logged in (should ideally not happen with anonymous auto-signin)
             userId = null;
             currentUsername = null;
             currentHighScore = 0;
-            authStatusDiv.textContent = 'Non connecté. Connectez-vous pour sauvegarder votre score.';
+            authStatusDiv.querySelector('span').textContent = 'Non connecté. Connectez-vous pour sauvegarder votre score.';
             
             authToggleButton.textContent = 'Connexion / Inscription';
             authToggleButton.classList.remove('action-button', 'disabled-button');
@@ -479,13 +515,13 @@
             authToggleButton.onclick = () => showAuthModal(true);
             
             highScoreDiv.textContent = 'Meilleur Score: 0 tours';
+            editUsernameButton.style.display = 'none'; // Hide edit button if not logged in
         }
     }
 
     async function initializeFirebase() {
         if (isGithubPlaceholder) {
             console.warn("⚠️ Mode GitHub sans configuration Firebase : La sauvegarde des scores et l'authentification sont désactivées.");
-            // Set up local state and UI, then exit
             updateAuthUI(null); 
             return;
         }
@@ -493,7 +529,7 @@
         // Ensure configuration is valid before attempting connection
         if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.apiKey) {
             console.error("Erreur: Configuration Firebase incomplète.");
-            authStatusDiv.textContent = 'ERREUR FIREBASE. Configuration manquante. Vérifiez la console.';
+            authStatusDiv.querySelector('span').textContent = 'ERREUR FIREBASE. Configuration manquante. Vérifiez la console.';
             return;
         }
 
@@ -503,18 +539,25 @@
             auth = getAuth(app); 
 
             // Listen for auth state changes
-            onAuthStateChanged(auth, updateAuthUI);
+            onAuthStateChanged(auth, async (user) => {
+                if (!user) {
+                    // If no user is logged in (e.g., after signOutUser), sign in anonymously immediately
+                    await signInAnonymously(auth);
+                } else {
+                    updateAuthUI(user);
+                }
+            });
 
-            // Sign in using custom token or anonymously
-            if (initialAuthToken) {
+            // This initial anonymous sign-in will trigger onAuthStateChanged
+            // Only do this if not already signed in or using a custom token
+            if (!auth.currentUser && !initialAuthToken) {
+                 await signInAnonymously(auth);
+            } else if (initialAuthToken) { // If there's a custom token, use it
                 await signInWithCustomToken(auth, initialAuthToken);
-            } else {
-                // Anonymous sign-in allows basic access and Firestore operations
-                await signInAnonymously(auth);
             }
         } catch (error) {
             console.error("Erreur fatale lors de l'initialisation de Firebase:", error);
-            authStatusDiv.textContent = 'ERREUR FIREBASE FATALE. Vérifiez la console et votre configuration.';
+            authStatusDiv.querySelector('span').textContent = 'ERREUR FIREBASE FATALE. Vérifiez la console et votre configuration.';
             db = null;
             auth = null;
         }
@@ -574,7 +617,7 @@
             let userCredential;
             if (isSigningUp) {
                 userCredential = await createUserWithEmailAndPassword(auth, mockEmail, password);
-                await saveUserProfile(userCredential.user.uid, username);
+                await saveUserProfile(userCredential.user.uid, username); // Save username for persistent account
                 console.log("Inscription réussie!");
             } else {
                 userCredential = await signInWithEmailAndPassword(auth, mockEmail, password);
@@ -589,6 +632,7 @@
                 if (error.code === 'auth/weak-password') errorMessage = 'Le mot de passe doit contenir au moins 6 caractères.';
                 if (error.code === 'auth/email-already-in-use') errorMessage = 'Ce nom d\'utilisateur est déjà utilisé. Veuillez vous connecter.';
                 if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') errorMessage = 'Nom d\'utilisateur ou mot de passe incorrect.';
+                if (error.code === 'auth/operation-not-allowed') errorMessage = 'L\'authentification Email/Mot de passe n\'est pas activée. Veuillez contacter l\'administrateur.';
             }
             authError.textContent = errorMessage;
         }
@@ -598,11 +642,47 @@
         if (isGithubPlaceholder || !auth) return;
         try {
             await signOut(auth);
-            await signInAnonymously(auth);
-            console.log("Déconnexion réussie et connexion anonyme.");
-            fetchGlobalLeaderboard(); 
+            // After signing out, onAuthStateChanged will detect no user and re-sign in anonymously
+            console.log("Déconnexion réussie. Reconnexion anonyme.");
         } catch (error) {
             console.error("Erreur de déconnexion:", error);
+        }
+    };
+
+    // NEW: Functions for Edit Username Modal
+    window.showEditUsernameModal = () => {
+        if (isGithubPlaceholder || !auth.currentUser) return;
+        newUsernameInput.value = currentUsername || ''; // Pre-fill with current name if available
+        usernameError.textContent = '';
+        editUsernameModal.style.display = 'flex';
+    };
+
+    window.handleUsernameEditSubmit = async (event) => {
+        event.preventDefault();
+        const newUsername = newUsernameInput.value.trim();
+        usernameError.textContent = '';
+
+        if (!newUsername || newUsername.length < 3 || newUsername.length > 20) {
+            usernameError.textContent = 'Le nom d\'utilisateur doit contenir entre 3 et 20 caractères.';
+            return;
+        }
+        if (newUsername === currentUsername) { // No change
+            editUsernameModal.style.display = 'none';
+            return;
+        }
+
+        try {
+            if (auth.currentUser && auth.currentUser.uid) {
+                await saveUserProfile(auth.currentUser.uid, newUsername);
+                currentUsername = newUsername; // Update local state
+                updateAuthUI(auth.currentUser); // Refresh UI to show new name
+                fetchGlobalLeaderboard(); // Refresh leaderboard with new name
+                editUsernameModal.style.display = 'none';
+                console.log("Nom d'utilisateur mis à jour:", newUsername);
+            }
+        } catch (error) {
+            console.error("Erreur lors de la mise à jour du nom d'utilisateur:", error);
+            usernameError.textContent = 'Erreur lors de la sauvegarde du nom. Veuillez réessayer.';
         }
     };
 
@@ -840,3 +920,4 @@
 
 </body>
 </html>
+
