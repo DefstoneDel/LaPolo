@@ -365,9 +365,8 @@
         try {
             const leaderboardCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'global_high_scores');
             
-            // Query: order by maxLaps descending, limit to 3
-            // NOTE: orderBy is used here but might require index creation in a real project
-            const q = query(leaderboardCollectionRef, orderBy('maxLaps', 'desc'), limit(3));
+            // Query: order by maxLaps descending, limit to 10 (or adjust as desired)
+            const q = query(leaderboardCollectionRef, orderBy('maxLaps', 'desc'), limit(10));
             const querySnapshot = await getDocs(q);
 
             let html = '';
@@ -377,24 +376,38 @@
                 querySnapshot.forEach((docSnap, index) => {
                     const data = docSnap.data();
                     
-                    // --- FIX FOR #NaN IN RANKING (already applied) ---
                     const safeIndex = typeof index === 'number' ? index : 0; 
-                    const rank = safeIndex + 1; // Calculate rank from the now-guaranteed-numeric index
-                    // --- END FIX ---
+                    const rank = safeIndex + 1; 
 
                     // Console log to verify rank during execution
                     console.log(`DEBUG: Leaderboard entry - docId: ${docSnap.id}, index: ${index}, calculated rank: ${rank}`);
 
+                    // --- Start Medal and Rank Display Logic ---
+                    let displayRankString;
+                    let medalColorClass;
 
-                    const medalColor = rank === 1 ? 'text-yellow-300' : rank === 2 ? 'text-gray-300' : 'text-yellow-600';
-                    const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉';
+                    if (rank === 1) {
+                        displayRankString = '🥇 #1'; // Gold medal for the best
+                        medalColorClass = 'text-yellow-300';
+                    } else if (rank === 2) {
+                        displayRankString = '🥈 #2'; // Silver medal for the second best
+                        medalColorClass = 'text-gray-300'; // Tailwind gray-300 for silver look
+                    } else if (rank === 3) {
+                        displayRankString = '🥉 #3'; // Bronze medal for the third best
+                        medalColorClass = 'text-amber-500'; // Tailwind amber for bronze look
+                    } else {
+                        // For ranks beyond 3, just display the number
+                        displayRankString = `#${rank}`;
+                        medalColorClass = 'text-gray-400'; // Default color for other ranks
+                    }
+                    // --- End Medal and Rank Display Logic ---
                     
                     // Highlight the current user if they are on the leaderboard
                     const highlightClass = (data.userId === userId && auth.currentUser) ? 'bg-pink-800/50' : 'hover:bg-gray-700/50';
 
                     html += `
                         <div class="flex justify-between items-center p-3 my-1 rounded-lg ${highlightClass}">
-                            <span class="text-xl font-extrabold ${medalColor}">${rankIcon} #${rank}</span>
+                            <span class="text-xl font-extrabold ${medalColorClass}">${displayRankString}</span>
                             <span class="text-lg font-semibold">${data.username || 'Utilisateur inconnu'}</span>
                             <span class="text-lg font-bold text-teal-400">${data.maxLaps} tours</span>
                         </div>
