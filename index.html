@@ -134,17 +134,26 @@
 
 <div class="container">
     <div class="flex justify-between items-center mb-6">
-        <!-- MODIFIED: auth-status now includes a span for the name and a button to edit -->
         <div id="auth-status" class="text-sm font-medium text-gray-400 text-left flex items-center">
             <span>Chargement...</span>
             <button id="edit-username-button" class="ml-2 text-pink-400 hover:text-pink-300 text-xs font-bold py-1 px-2 rounded-md border border-pink-400 hidden" onclick="showEditUsernameModal()">Modifier</button>
         </div>
         <div>
-            <!-- Removed the old "Connexion / Inscription" button -->
+            <!-- No auth toggle anymore -->
         </div>
     </div>
     
     <h1 class="text-3xl font-bold mb-2 text-pink-400">La Polo du Myth</h1>
+    
+    <!-- MOVED: SECTION CLASSEMENT GLOBAL IS NOW HERE -->
+    <div class="mt-8 mb-6"> <!-- Adjusted margin-bottom to create spacing -->
+        <h2 class="text-2xl font-bold mb-4 text-yellow-400">🏆 Top Mythes</h2>
+        <div id="leaderboard" class="bg-gray-800 p-4 rounded-lg shadow-inner">
+            <p class="text-gray-400">Chargement du classement...</p>
+        </div>
+    </div>
+    <!-- END MOVED SECTION -->
+
     <div id="high-score" class="text-xl font-extrabold mb-4 text-yellow-300">
         Meilleur Score: 0 tours
     </div>
@@ -162,19 +171,8 @@
     <div id="results" class="result-text mt-6 text-2xl font-extrabold">
         <!-- Les résultats seront affichés ici -->
     </div>
-
-    <!-- SECTION CLASSEMENT GLOBAL -->
-    <div class="mt-8">
-        <h2 class="text-2xl font-bold mb-4 text-yellow-400">🏆 Top 3 Mythes</h2>
-        <div id="leaderboard" class="bg-gray-800 p-4 rounded-lg shadow-inner">
-            <p class="text-gray-400">Chargement du classement...</p>
-        </div>
-    </div>
 </div>
 
-<!-- Removed the old Authentication Modal -->
-
-<!-- NEW: Edit Username Modal -->
 <div id="edit-username-modal" class="modal">
     <div class="modal-content">
         <h2 class="text-2xl font-bold mb-4 text-pink-400">Choisir un Nom d'Utilisateur</h2>
@@ -192,20 +190,13 @@
     </div>
 </div>
 
-<!-- LOGIQUE JAVASCRIPT INTÉGRÉE (contenu de script.js) -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"; // Removed signInWithCustomToken, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut
+    import { getAuth, signInAnonymously, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // --- Firebase Setup (MANDATORY) ---
-    // ⚠️ ATTENTION : SI VOUS EXÉCUTEZ CE CODE HORS DU CANVAS (ex: sur GitHub), 
-    // VEUILLEZ REMPLACER LES CHAÎNES VIDES ("") CI-DESSOUS PAR VOTRE CONFIGURATION FIREBASE RÉELLE 
-    // POUR ACTIVER LA SAUVEGARDE ET LE CLASSEMENT GLOBAL.
-
-    // 1. DÉFINISSEZ VOTRE CONFIGURATION ICI :
     const GITHUB_FIREBASE_CONFIG = {
-        apiKey: "AIzaSyBsWugLEz2bu5xjbR5VtYXMr7cUhD6ycEE", // CLÉ REQUISE pour la sauvegarde
+        apiKey: "AIzaSyBsWugLEz2bu5xjbR5VtYXMr7cUhD6ycEE",
         authDomain: "lapolo-5351b.firebaseapp.com",
         projectId: "lapolo-5351b", 
         storageBucket: "lapolo-5351b.firebasestorage.app",
@@ -214,9 +205,6 @@
     };
     const GITHUB_APP_ID = GITHUB_FIREBASE_CONFIG.projectId || 'local-github-app';
 
-
-    // 2. LOGIQUE DE SÉLECTION DE LA CONFIGURATION :
-    // Vérifie si nous sommes dans l'environnement Canvas (où les variables sont injectées)
     const isCanvas = typeof __app_id !== 'undefined';
     
     const appId = isCanvas 
@@ -225,17 +213,10 @@
     const firebaseConfig = isCanvas 
         ? JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}')
         : GITHUB_FIREBASE_CONFIG;
-    // Le token d'authentification personnalisé n'est PAS disponible en dehors du Canvas.
-    // initialAuthToken is no longer used, as we're solely relying on anonymous sign-in now.
     const initialAuthToken = null; 
     
-    // MODIFIED: This condition now correctly identifies an *actual* placeholder or missing key.
-    // Your provided API key is now treated as a valid configuration.
     const isGithubPlaceholder = !isCanvas && (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY_GOES_HERE");
     
-    // --------------------------------------------------------------------------------
-
-
     let app;
     let db;
     let auth;
@@ -243,7 +224,6 @@
     let currentHighScore = 0;
     let currentUsername = null; 
     
-    // Game variables
     const CRASH_CHANCE = 0.20; 
     let isRacing = false;
     let lapCount = 0;
@@ -252,33 +232,24 @@
     let crashLapNumber = -1; 
     let animationFrameId;
 
-    // Canvas variables
     const canvas = document.getElementById('race-track');
     const ctx = canvas.getContext('2d');
     const statusText = document.getElementById('current-status');
     const resultsDiv = document.getElementById('results');
     const startButton = document.getElementById('start-button');
     const authStatusDiv = document.getElementById('auth-status');
-    // Removed authToggleButton
     const highScoreDiv = document.getElementById('high-score');
     const leaderboardDiv = document.getElementById('leaderboard'); 
     const editUsernameButton = document.getElementById('edit-username-button'); 
 
     let centerX, centerY, radiusX, radiusY;
 
-    // Removed Auth Modal Elements
-
-    // NEW: Edit Username Modal Elements
     const editUsernameModal = document.getElementById('edit-username-modal');
     const newUsernameInput = document.getElementById('new-username-input');
     const usernameError = document.getElementById('username-error');
 
-
-    // --- Firestore High Score Management (Private Data) ---
-
     function getHighScoreDocRef() {
         if (!db || !userId) return null;
-        // Private data path: /artifacts/{appId}/users/{userId}/game_data/high_score
         return doc(db, 'artifacts', appId, 'users', userId, 'game_data', 'high_score');
     }
 
@@ -304,7 +275,7 @@
     async function updateHighScore(newScore) {
         if (isGithubPlaceholder || !userId || !db) {
              console.warn("Sauvegarde des scores ignorée : Firebase non configuré ou mode local.");
-             currentHighScore = Math.max(currentHighScore, newScore); // Update local best score for the session
+             currentHighScore = Math.max(currentHighScore, newScore);
              highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours (Local)`;
              return;
         }
@@ -318,7 +289,6 @@
                 highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours`;
                 console.log("Meilleur score mis à jour:", newScore);
 
-                // MODIFIED: Update the global score if *any* user (anonymous or not) has a username set
                 if (auth.currentUser && currentUsername) {
                      updateGlobalScore(newScore, currentUsername);
                 }
@@ -329,14 +299,10 @@
         }
     }
 
-    // --- Global Leaderboard Management (Public Data) ---
-
     async function updateGlobalScore(newScore, username) {
-        // MODIFIED: Simplified check - now only needs db, current user, and provided username
         if (isGithubPlaceholder || !db || !auth.currentUser || !username) return; 
 
         try {
-            // Public data path: /artifacts/{appId}/public/data/global_high_scores/{userId}
             const globalDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'global_high_scores', auth.currentUser.uid);
             
             const docSnap = await getDoc(globalDocRef);
@@ -367,7 +333,6 @@
         try {
             const leaderboardCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'global_high_scores');
             
-            // Query: order by maxLaps descending, limit to 10 (or adjust as desired)
             const q = query(leaderboardCollectionRef, orderBy('maxLaps', 'desc'), limit(10));
             const querySnapshot = await getDocs(q);
 
@@ -375,38 +340,31 @@
             if (querySnapshot.empty) {
                 html = '<p class="text-gray-400">Aucun score enregistré. Soyez le premier !</p>';
             } else {
-                // FIX: Changed from forEach to a traditional for loop to ensure 'i' is always a number
                 for (let i = 0; i < querySnapshot.docs.length; i++) {
-                    const docSnap = querySnapshot.docs[i]; // Get the document snapshot
+                    const docSnap = querySnapshot.docs[i];
                     const data = docSnap.data();
                     
-                    // The 'i' from the for loop is guaranteed to be a sequential number (0, 1, 2...)
-                    const rank = i + 1; // Calculate rank from this reliable index
+                    const rank = i + 1;
 
-                    // Debugging line (can be removed after verification)
                     console.log(`DEBUG: Leaderboard entry - loop index: ${i}, calculated rank: ${rank}, username: ${data.username || 'Unknown'}, score: ${data.maxLaps}`);
 
-                    // --- Start Medal and Rank Display Logic ---
                     let displayRankString;
                     let medalColorClass;
 
                     if (rank === 1) {
-                        displayRankString = '🥇 #1'; // Gold medal for the best
+                        displayRankString = '🥇 #1';
                         medalColorClass = 'text-yellow-300';
                     } else if (rank === 2) {
-                        displayRankString = '🥈 #2'; // Silver medal for the second best
-                        medalColorClass = 'text-gray-300'; // Tailwind gray-300 for silver look
+                        displayRankString = '🥈 #2';
+                        medalColorClass = 'text-gray-300';
                     } else if (rank === 3) {
-                        displayRankString = '🥉 #3'; // Bronze medal for the third best
-                        medalColorClass = 'text-amber-500'; // Tailwind amber for bronze look
+                        displayRankString = '🥉 #3';
+                        medalColorClass = 'text-amber-500';
                     } else {
-                        // For ranks beyond 3, just display the number
                         displayRankString = `#${rank}`;
-                        medalColorClass = 'text-gray-400'; // Default color for other ranks
+                        medalColorClass = 'text-gray-400';
                     }
-                    // --- End Medal and Rank Display Logic ---
                     
-                    // Highlight the current user if they are on the leaderboard
                     const highlightClass = (data.userId === userId && auth.currentUser) ? 'bg-pink-800/50' : 'hover:bg-gray-700/50';
 
                     html += `
@@ -416,7 +374,7 @@
                             <span class="text-lg font-bold text-teal-400">${data.maxLaps} tours</span>
                         </div>
                     `;
-                } // End of for loop
+                }
             }
             leaderboardDiv.innerHTML = html;
 
@@ -425,9 +383,6 @@
             leaderboardDiv.innerHTML = '<p class="text-red-400">Erreur lors du chargement du classement.</p>';
         }
     }
-
-
-    // --- Firestore Profile Management ---
 
     async function fetchUserProfile(uid) {
         if (isGithubPlaceholder || !db) return null;
@@ -445,19 +400,16 @@
         if (isGithubPlaceholder || !db) return;
         try {
             const profileDocRef = doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data');
-            await setDoc(profileDocRef, { username: username, createdAt: new Date().toISOString() }, { merge: true }); // Merge true to not overwrite other fields
+            await setDoc(profileDocRef, { username: username, createdAt: new Date().toISOString() }, { merge: true });
         } catch (error) {
             console.error("Erreur lors de la sauvegarde du profil:", error);
         }
     }
 
-
-    // --- Authentication Logic ---
-
     function updateAuthUI(user) {
         if (isGithubPlaceholder) {
             authStatusDiv.querySelector('span').textContent = 'Mode Local (Scores non sauvegardés).';
-            editUsernameButton.style.display = 'none'; // Hide edit button in placeholder mode
+            editUsernameButton.style.display = 'none';
             highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours (Local)`;
             return;
         }
@@ -466,25 +418,21 @@
             userId = user.uid;
             
             fetchUserProfile(user.uid).then(username => {
-                currentUsername = username; // Update currentUsername from profile
+                currentUsername = username;
                 
                 authStatusDiv.querySelector('span').innerHTML = `Connecté comme : <span class="text-pink-400">${username || 'Anonyme'}</span>`;
-                editUsernameButton.style.display = 'inline-block'; // Always show edit button for anonymous users
+                editUsernameButton.style.display = 'inline-block';
             });
             
-            // 2. No main auth toggle anymore, only for editing username
-            
-            // 3. Load game data
             fetchHighScore(); 
             fetchGlobalLeaderboard(); 
         } else {
-            // User is not logged in, but anonymous auto-signin should prevent this state
             userId = null;
             currentUsername = null;
             currentHighScore = 0;
             authStatusDiv.querySelector('span').textContent = 'Non connecté. Connectez-vous pour sauvegarder votre score.';
             highScoreDiv.textContent = 'Meilleur Score: 0 tours';
-            editUsernameButton.style.display = 'none'; // Hide edit button if not logged in
+            editUsernameButton.style.display = 'none';
         }
     }
 
@@ -495,7 +443,6 @@
             return;
         }
         
-        // Ensure configuration is valid before attempting connection
         if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.apiKey) {
             console.error("Erreur: Configuration Firebase incomplète.");
             authStatusDiv.querySelector('span').textContent = 'ERREUR FIREBASE. Configuration manquante. Vérifiez la console.';
@@ -507,17 +454,14 @@
             db = getFirestore(app);
             auth = getAuth(app); 
 
-            // Listen for auth state changes
             onAuthStateChanged(auth, async (user) => {
                 if (!user) {
-                    // If no user is logged in (e.g., after a manual clear storage), sign in anonymously immediately
                     await signInAnonymously(auth);
                 } else {
                     updateAuthUI(user);
                 }
             });
 
-            // Ensure an anonymous user is signed in right away if not already
             if (!auth.currentUser) {
                  await signInAnonymously(auth);
             }
@@ -529,15 +473,9 @@
         }
     }
 
-    // Removed window.showAuthModal, window.toggleAuthMode, window.handleAuthSubmit
-
-    // window.signOutUser is no longer directly exposed via a button, but could be used internally if needed.
-    // For this anonymous-first flow, users don't "sign out" in the traditional sense.
-
-    // NEW: Functions for Edit Username Modal
     window.showEditUsernameModal = () => {
         if (isGithubPlaceholder || !auth.currentUser) return;
-        newUsernameInput.value = currentUsername || ''; // Pre-fill with current name if available
+        newUsernameInput.value = currentUsername || '';
         usernameError.textContent = '';
         editUsernameModal.style.display = 'flex';
     };
@@ -551,7 +489,7 @@
             usernameError.textContent = 'Le nom d\'utilisateur doit contenir entre 3 et 20 caractères.';
             return;
         }
-        if (newUsername === currentUsername) { // No change
+        if (newUsername === currentUsername) {
             editUsernameModal.style.display = 'none';
             return;
         }
@@ -559,9 +497,9 @@
         try {
             if (auth.currentUser && auth.currentUser.uid) {
                 await saveUserProfile(auth.currentUser.uid, newUsername);
-                currentUsername = newUsername; // Update local state
-                updateAuthUI(auth.currentUser); // Refresh UI to show new name
-                fetchGlobalLeaderboard(); // Refresh leaderboard with new name (uses currentUsername)
+                currentUsername = newUsername;
+                updateAuthUI(auth.currentUser);
+                fetchGlobalLeaderboard();
                 editUsernameModal.style.display = 'none';
                 console.log("Nom d'utilisateur mis à jour:", newUsername);
             }
@@ -570,9 +508,6 @@
             usernameError.textContent = 'Erreur lors de la sauvegarde du nom. Veuillez réessayer.';
         }
     };
-
-
-    // --- Drawing Functions ---
 
     function resizeCanvas() {
         const parent = canvas.parentElement;
@@ -659,7 +594,6 @@
         ctx.rotate(rotation);
 
         if (isCrashed) {
-            // Apply crash transformation
             const crashJitterX = Math.random() * 8 - 4;
             const crashJitterY = Math.random() * 8 - 4;
             ctx.rotate(Math.PI / 8); 
@@ -708,8 +642,6 @@
         }
     }
 
-    // --- Simulation Core Logic ---
-
     function gameLoop() {
         if (!isRacing) {
             if (animationFrameId) {
@@ -720,13 +652,11 @@
 
         angle += anglePerFrame;
 
-        // Check for lap completion
         if (angle >= (lapCount + 1) * 2 * Math.PI) {
             
-            lapCount++; // Completed the lap
+            lapCount++;
             statusText.textContent = `Tour ${lapCount}`; 
 
-            // Dynamic Crash Check
             if (Math.random() < CRASH_CHANCE) {
                 crashLapNumber = lapCount;
                 endSimulation(true);
@@ -742,27 +672,23 @@
     window.runSimulation = () => {
         if (isRacing) return;
 
-        // Basic check for auth readiness (even in placeholder mode, we need a userId mock)
         if (!userId) { 
             resultsDiv.classList.add('text-red-400');
             resultsDiv.innerHTML = `⚠️ Veuillez patienter, l'application est en cours d'initialisation...`;
             return;
         }
 
-        // 1. Reset State
         isRacing = true;
         lapCount = 0;
         angle = 0;
         crashLapNumber = -1; 
         resultsDiv.innerHTML = '';
         
-        // 2. Update UI
         startButton.disabled = true;
         startButton.classList.add('disabled-button');
         startButton.textContent = 'COURSE EN COURS...';
         statusText.textContent = `Tour 1`; 
 
-        // 3. Start Loop
         animationFrameId = requestAnimationFrame(gameLoop);
     };
 
@@ -780,11 +706,9 @@
             resultsDiv.classList.add('text-red-400');
             resultsDiv.innerHTML = `🚨 **CRASH !** Myth s'est écrasé au Tour ${crashLapNumber} ! 💔`;
 
-            // High Score Check and Update (Handles local/remote logic internally)
             updateHighScore(crashLapNumber); 
         } 
         
-        // Reset button UI after a delay
         setTimeout(() => {
             startButton.disabled = false;
             startButton.classList.remove('disabled-button');
@@ -793,9 +717,6 @@
         }, 1500);
     }
 
-    // --- Initialization ---
-
-    // Initialize the canvas size and draw the initial state on load
     window.onload = function() {
         resizeCanvas();
         drawTrack();
@@ -805,6 +726,5 @@
 
 </body>
 </html>
-
 
 
