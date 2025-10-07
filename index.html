@@ -219,7 +219,9 @@
     // Vérifie si nous sommes dans l'environnement Canvas (où les variables sont injectées)
     const isCanvas = typeof __app_id !== 'undefined';
     
-    const appId = isCanvas ? __app_id : GITHUB_APP_ID;
+    const appId = isCanvas 
+        ? __app_id 
+        : GITHUB_APP_ID;
     const firebaseConfig = isCanvas 
         ? JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}')
         : GITHUB_FIREBASE_CONFIG;
@@ -379,8 +381,10 @@
                     const safeIndex = typeof index === 'number' ? index : 0; 
                     const rank = safeIndex + 1; 
 
-                    // Console log to verify rank during execution
-                    console.log(`DEBUG: Leaderboard entry - docId: ${docSnap.id}, index: ${index}, calculated rank: ${rank}`);
+                    // --- CRITICAL DEBUGGING LINE ---
+                    // This will tell us exactly what 'index' and 'rank' are for each entry
+                    console.log(`DEBUG: Leaderboard entry - index: ${index}, calculated rank: ${rank}, username: ${data.username || 'Unknown'}, score: ${data.maxLaps}`);
+                    // --- END CRITICAL DEBUGGING LINE ---
 
                     // --- Start Medal and Rank Display Logic ---
                     let displayRankString;
@@ -801,4 +805,5 @@
 
 </body>
 </html>
+
 
