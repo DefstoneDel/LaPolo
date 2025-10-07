@@ -143,7 +143,7 @@
         </div>
     </div>
     
-    <h1 class="text-3xl font-bold mb-2 text-pink-400">Drift avec Myth</h1>
+    <h1 class="text-3xl font-bold mb-2 text-pink-400">La Polo du Myth</h1>
     
     <!-- MOVED: SECTION CLASSEMENT GLOBAL IS NOW HERE -->
     <div class="mt-8 mb-6"> <!-- Adjusted margin-bottom to create spacing -->
@@ -289,8 +289,13 @@
                 highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours`;
                 console.log("Meilleur score mis à jour:", newScore);
 
-                if (auth.currentUser && currentUsername) {
+                // FIX: Only update global score if a valid username is set
+                if (auth.currentUser && currentUsername && currentUsername.trim().length > 0) {
                      updateGlobalScore(newScore, currentUsername);
+                } else {
+                    console.warn("Global leaderboard update skipped: Username not set or empty. Prompting user.");
+                    // FIX: Prompt user to set username if they achieved a high score but have no username
+                    showEditUsernameModal(); 
                 }
 
             } catch (error) {
@@ -300,7 +305,11 @@
     }
 
     async function updateGlobalScore(newScore, username) {
-        if (isGithubPlaceholder || !db || !auth.currentUser || !username) return; 
+        // FIX: Also check for empty username here, though updateHighScore should catch it first
+        if (isGithubPlaceholder || !db || !auth.currentUser || !username || username.trim().length === 0) {
+            console.warn("Global leaderboard update prevented by security rules/missing data (username invalid).");
+            return; 
+        }
 
         try {
             const globalDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'global_high_scores', auth.currentUser.uid);
@@ -385,14 +394,15 @@
     }
 
     async function fetchUserProfile(uid) {
-        if (isGithubPlaceholder || !db) return null;
+        if (isGithubPlaceholder || !db) return ''; // FIX: Return empty string instead of null
         try {
             const profileDocRef = doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data');
             const docSnap = await getDoc(profileDocRef);
-            return docSnap.exists() ? docSnap.data().username : null;
+            // FIX: Ensure it always returns a string, even if empty
+            return docSnap.exists() ? (docSnap.data().username || '') : ''; 
         } catch (error) {
             console.error("Erreur lors de la récupération du profil:", error);
-            return null;
+            return ''; // FIX: Return empty string on error as well
         }
     }
 
@@ -422,6 +432,15 @@
                 
                 authStatusDiv.querySelector('span').innerHTML = `Connecté comme : <span class="text-pink-400">${username || 'Anonyme'}</span>`;
                 editUsernameButton.style.display = 'inline-block';
+
+                // FIX: If username is empty after fetching, prompt the user to set it
+                if (!currentUsername || currentUsername.trim().length === 0) {
+                    console.log("Username is missing, prompting user to set one.");
+                    // Delaying to ensure UI is fully rendered before showing modal
+                    setTimeout(() => {
+                        showEditUsernameModal();
+                    }, 500); 
+                }
             });
             
             fetchHighScore(); 
@@ -726,5 +745,4 @@
 
 </body>
 </html>
-
 
