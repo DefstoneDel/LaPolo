@@ -143,16 +143,16 @@
         </div>
     </div>
     
-    <h1 class="text-3xl font-bold mb-2 text-pink-400">Drift avec Myth</h1>
+    <h1 class="text-3xl font-bold mb-2 text-pink-400">La Polo du Myth</h1>
     
-    <!-- MOVED: SECTION CLASSEMENT GLOBAL IS NOW HERE -->
-    <div class="mt-8 mb-6"> <!-- Adjusted margin-bottom to create spacing -->
-        <h2 class="text-2xl font-bold mb-4 text-yellow-400">🏆 Top Mythes</h2>
+    <!-- MOVED AND MODIFIED: SECTION CLASSEMENT GLOBAL IS NOW HERE AND ONLY DISPLAYS TOP 3 -->
+    <div class="mt-8 mb-6">
+        <h2 class="text-2xl font-bold mb-4 text-yellow-400">🏆 Top 3 Mythes</h2>
         <div id="leaderboard" class="bg-gray-800 p-4 rounded-lg shadow-inner">
             <p class="text-gray-400">Chargement du classement...</p>
         </div>
     </div>
-    <!-- END MOVED SECTION -->
+    <!-- END MOVED AND MODIFIED SECTION -->
 
     <div id="high-score" class="text-xl font-extrabold mb-4 text-yellow-300">
         Meilleur Score: 0 tours
@@ -289,12 +289,10 @@
                 highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours`;
                 console.log("Meilleur score mis à jour:", newScore);
 
-                // FIX: Only update global score if a valid username is set
                 if (auth.currentUser && currentUsername && currentUsername.trim().length > 0) {
                      updateGlobalScore(newScore, currentUsername);
                 } else {
                     console.warn("Global leaderboard update skipped: Username not set or empty. Prompting user.");
-                    // FIX: Prompt user to set username if they achieved a high score but have no username
                     showEditUsernameModal(); 
                 }
 
@@ -305,7 +303,6 @@
     }
 
     async function updateGlobalScore(newScore, username) {
-        // FIX: Also check for empty username here, though updateHighScore should catch it first
         if (isGithubPlaceholder || !db || !auth.currentUser || !username || username.trim().length === 0) {
             console.warn("Global leaderboard update prevented by security rules/missing data (username invalid).");
             return; 
@@ -342,7 +339,8 @@
         try {
             const leaderboardCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'global_high_scores');
             
-            const q = query(leaderboardCollectionRef, orderBy('maxLaps', 'desc'), limit(10));
+            // FIX: Limit the query to only 3 results for the top 3 ranking
+            const q = query(leaderboardCollectionRef, orderBy('maxLaps', 'desc'), limit(3));
             const querySnapshot = await getDocs(q);
 
             let html = '';
@@ -370,6 +368,7 @@
                         displayRankString = '🥉 #3';
                         medalColorClass = 'text-amber-500';
                     } else {
+                        // This else block technically won't be hit with limit(3), but good for safety
                         displayRankString = `#${rank}`;
                         medalColorClass = 'text-gray-400';
                     }
@@ -394,15 +393,14 @@
     }
 
     async function fetchUserProfile(uid) {
-        if (isGithubPlaceholder || !db) return ''; // FIX: Return empty string instead of null
+        if (isGithubPlaceholder || !db) return '';
         try {
             const profileDocRef = doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data');
             const docSnap = await getDoc(profileDocRef);
-            // FIX: Ensure it always returns a string, even if empty
             return docSnap.exists() ? (docSnap.data().username || '') : ''; 
         } catch (error) {
             console.error("Erreur lors de la récupération du profil:", error);
-            return ''; // FIX: Return empty string on error as well
+            return '';
         }
     }
 
@@ -433,10 +431,8 @@
                 authStatusDiv.querySelector('span').innerHTML = `Connecté comme : <span class="text-pink-400">${username || 'Anonyme'}</span>`;
                 editUsernameButton.style.display = 'inline-block';
 
-                // FIX: If username is empty after fetching, prompt the user to set it
                 if (!currentUsername || currentUsername.trim().length === 0) {
                     console.log("Username is missing, prompting user to set one.");
-                    // Delaying to ensure UI is fully rendered before showing modal
                     setTimeout(() => {
                         showEditUsernameModal();
                     }, 500); 
