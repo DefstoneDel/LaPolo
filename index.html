@@ -236,7 +236,9 @@
     const initialAuthToken = isCanvas ? (typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null) : null;
     
     // Détecte si nous sommes sur GitHub et que l'apiKey est vide (mode local/sécurisé)
-    const isGithubPlaceholder = !isCanvas && (firebaseConfig.apiKey === "AIzaSyBsWugLEz2bu5xjbR5VtYXMr7cUhD6ycEE" || !firebaseConfig.apiKey);
+    // --- MODIFICATION APPLIQUÉE ICI ---
+    const isGithubPlaceholder = !isCanvas && (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY_GOES_HERE");
+    // --- FIN DE LA MODIFICATION ---
     
     // --------------------------------------------------------------------------------
 
