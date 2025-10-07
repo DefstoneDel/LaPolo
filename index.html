@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Drift avec Myth - Simulateur de Drift et High Score</title>
+    <title>La Polo du Myth - Simulateur de Crash et High Score</title>
     <!-- Chargement de Tailwind CSS pour les classes utilitaires -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -159,6 +159,16 @@
     </div>
     <p class="mb-6 text-gray-300">Myth survivra-t-il dans sa Polo ? La course continue jusqu'à ce qu'il s'écrase !</p>
 
+    <!-- NEW: Biéres Slider -->
+    <div class="mb-6">
+        <label for="bieres-slider" class="block text-lg font-bold mb-2 text-blue-400">
+            Nombre de bières de Myth : <span id="bieres-value">0</span> 🍺
+        </label>
+        <input type="range" id="bieres-slider" min="0" max="5" value="0" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer range-lg">
+        <p class="text-sm text-gray-400 mt-2">Influence aléatoire sur le risque de crash !</p>
+    </div>
+    <!-- END NEW -->
+
     <div class="flex flex-col md:flex-row justify-center items-center gap-4 mb-6">
         <button id="start-button" onclick="runSimulation()">
             Démarrer la Course !
@@ -224,7 +234,10 @@
     let currentHighScore = 0;
     let currentUsername = null; 
     
-    const CRASH_CHANCE = 0.20; 
+    // MODIFIED: Base crash chance and current effective crash chance
+    const BASE_CRASH_CHANCE = 0.20; 
+    let currentCrashChance = BASE_CRASH_CHANCE; // This will be the actual chance used in the game
+
     let isRacing = false;
     let lapCount = 0;
     let angle = 0; 
@@ -241,6 +254,10 @@
     const highScoreDiv = document.getElementById('high-score');
     const leaderboardDiv = document.getElementById('leaderboard'); 
     const editUsernameButton = document.getElementById('edit-username-button'); 
+
+    // NEW: Biéres slider elements
+    const bieresSlider = document.getElementById('bieres-slider');
+    const bieresValueSpan = document.getElementById('bieres-value');
 
     let centerX, centerY, radiusX, radiusY;
 
@@ -353,7 +370,7 @@
                     
                     const rank = i + 1;
 
-                    console.log(`DEBUG: Leaderboard entry - loop index: ${i}, calculated rank: ${rank}, username: ${data.username || 'Unknown'}, score: ${data.maxLaps}`);
+                    // console.log(`DEBUG: Leaderboard entry - loop index: ${i}, calculated rank: ${rank}, username: ${data.username || 'Unknown'}, score: ${data.maxLaps}`);
 
                     let displayRankString;
                     let medalColorClass;
@@ -657,6 +674,32 @@
         }
     }
 
+    // NEW: Function to calculate modified crash chance based on beers
+    function calculateModifiedCrashChance(bieresCount) {
+        let modifier = 0;
+        switch (bieresCount) {
+            case 1: modifier = 0.05; break;
+            case 2: modifier = 0.10; break;
+            case 3: modifier = 0.15; break;
+            case 4:
+            case 5: modifier = 0.20; break;
+            default: modifier = 0; // 0 beers
+        }
+
+        if (modifier === 0) {
+            return BASE_CRASH_CHANCE;
+        }
+
+        const randomRoll = Math.random();
+        if (randomRoll < 0.33) { // 33% chance to increase
+            return Math.min(1, BASE_CRASH_CHANCE * (1 + modifier));
+        } else if (randomRoll < 0.66) { // 33% chance to decrease
+            return Math.max(0, BASE_CRASH_CHANCE * (1 - modifier));
+        } else { // Remaining 34% chance to stay the same
+            return BASE_CRASH_CHANCE;
+        }
+    }
+
     function gameLoop() {
         if (!isRacing) {
             if (animationFrameId) {
@@ -672,7 +715,8 @@
             lapCount++;
             statusText.textContent = `Tour ${lapCount}`; 
 
-            if (Math.random() < CRASH_CHANCE) {
+            // MODIFIED: Use currentCrashChance instead of fixed CRASH_CHANCE
+            if (Math.random() < currentCrashChance) { 
                 crashLapNumber = lapCount;
                 endSimulation(true);
                 return;
@@ -693,6 +737,10 @@
             return;
         }
 
+        // NEW: Calculate crash chance for this run based on selected beers
+        currentCrashChance = calculateModifiedCrashChance(parseInt(bieresSlider.value, 10));
+        console.log(`Starting run with ${bieresSlider.value} bières. Effective crash chance: ${currentCrashChance.toFixed(4)}`);
+
         isRacing = true;
         lapCount = 0;
         angle = 0;
@@ -703,6 +751,10 @@
         startButton.classList.add('disabled-button');
         startButton.textContent = 'COURSE EN COURS...';
         statusText.textContent = `Tour 1`; 
+
+        // Disable slider while racing
+        bieresSlider.disabled = true;
+        bieresSlider.classList.add('opacity-50', 'cursor-not-allowed');
 
         animationFrameId = requestAnimationFrame(gameLoop);
     };
@@ -729,6 +781,9 @@
             startButton.classList.remove('disabled-button');
             startButton.textContent = 'Démarrer une nouvelle course !';
             statusText.textContent = 'Course Terminée';
+            // Enable slider after race ends
+            bieresSlider.disabled = false;
+            bieresSlider.classList.remove('opacity-50', 'cursor-not-allowed');
         }, 1500);
     }
 
@@ -736,8 +791,19 @@
         resizeCanvas();
         drawTrack();
         initializeFirebase();
+
+        // NEW: Initialize slider value display
+        bieresValueSpan.textContent = bieresSlider.value;
+        
+        // NEW: Add event listener for slider input
+        bieresSlider.addEventListener('input', () => {
+            bieresValueSpan.textContent = bieresSlider.value;
+        });
     }
 </script>
+
+</body>
+</html>
 
 </body>
 </html>
