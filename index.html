@@ -129,7 +129,7 @@
             }
         }
 
-        /* --- NEW: Custom Slider Styles --- */
+        /* --- Custom Slider Styles --- */
         .custom-range-slider {
             -webkit-appearance: none; /* Remove default styling */
             appearance: none;
@@ -260,7 +260,7 @@
             background: #DB1EF2; /* Lighter Purple */
             box-shadow: 0 0 20px rgba(219, 30, 242, 0.9);
         }
-        /* --- END NEW Custom Slider Styles --- */
+        /* --- END Custom Slider Styles --- */
 
     </style>
 </head>
@@ -281,7 +281,6 @@
     
     <!-- MOVED AND MODIFIED: SECTION CLASSEMENT GLOBAL IS NOW HERE AND ONLY DISPLAYS TOP 3 -->
     <div class="mt-8 mb-6">
-
         <h2 class="text-2xl font-bold mb-4 text-yellow-400">🏆 Top 3 Mythes</h2>
         <div id="leaderboard" class="bg-gray-800 p-4 rounded-lg shadow-inner">
             <p class="text-gray-400">Chargement du classement...</p>
@@ -292,9 +291,7 @@
     <div id="high-score" class="text-xl font-extrabold mb-4 text-yellow-300">
         Meilleur Score: 0 tours
     </div>
-    <p class="mb-6 text-gray-300">Myth survivra-t-il dans sa Polo ? Bois, fume ou reste sobre, c'est à tes risques et périls.
-
-</p>
+    <p class="mb-6 text-gray-300">Myth survivra-t-il dans sa Polo ? Bois, fume ou reste sobre, c'est à tes risques et périls.</p>
 
     <!-- NEW: Bières Slider -->
     <div class="mb-4">
@@ -418,7 +415,7 @@
     const leaderboardDiv = document.getElementById('leaderboard'); 
     const editUsernameButton = document.getElementById('edit-username-button'); 
 
-    // NEW: Slider elements
+    // Slider elements
     const bieresSlider = document.getElementById('bieres-slider');
     const bieresValueSpan = document.getElementById('bieres-value');
     const bedosSlider = document.getElementById('bedos-slider');
@@ -884,10 +881,20 @@
             }
         }
 
+        // NEW: Apply special good luck bonus for 2 Bières, 1 Bedos, 1 Ligne
+        if (bieresCount === 2 && bedosCount === 1 && ligneCount === 1) {
+            if (Math.random() < 0.50) { // 50% chance of good luck
+                finalCrashChance = Math.max(0, finalCrashChance * 0.50); // Reduce risk by 50%
+                console.log("SPECIAL BONUS! Good luck activated, crash chance significantly reduced!");
+            } else {
+                console.log("SPECIAL BONUS! Good luck did not activate this time.");
+            }
+        }
+
         return finalCrashChance;
     }
 
-    // NEW: Function to calculate total points spent
+    // Function to calculate total points spent
     function calculateCurrentPoints() {
         const bieres = parseInt(bieresSlider.value, 10);
         const bedos = parseInt(bedosSlider.value, 10);
@@ -895,7 +902,7 @@
         return (bieres * BIERE_COST) + (bedos * BEDOS_COST) + (ligne * LIGNE_COST);
     }
 
-    // NEW: Function to update point display and start button state
+    // Function to update point display and start button state
     function updatePointDisplayAndButton() {
         const currentPoints = calculateCurrentPoints();
         const remainingPoints = MAX_POINTS - currentPoints;
@@ -962,13 +969,13 @@
             return;
         }
 
-        // NEW: Calculate crash chance for this run based on all selected items
+        // NEW: Calculate crash chance for this run based on all selected items and any special bonuses
         currentCrashChance = calculateTotalCrashChance(
             parseInt(bieresSlider.value, 10),
             parseInt(bedosSlider.value, 10),
             parseInt(ligneSlider.value, 10)
         );
-        console.log(`Starting run with ${bieresSlider.value} bières, ${bedosSlider.value} bedos, ${ligneSlider.value} lignes. Effective crash chance: ${currentCrashChance.toFixed(4)}`);
+        console.log(`Starting run with ${bieresSlider.value} bières, ${bedosSlider.value} bedos, ${ligneSlider.value} lignes. Final effective crash chance: ${currentCrashChance.toFixed(4)}`);
 
         isRacing = true;
         lapCount = 0;
@@ -1029,13 +1036,13 @@
         drawTrack();
         initializeFirebase();
 
-        // NEW: Initialize slider value displays and point counter
+        // Initialize slider value displays and point counter
         bieresValueSpan.textContent = bieresSlider.value;
         bedosValueSpan.textContent = bedosSlider.value;
         ligneValueSpan.textContent = ligneSlider.value;
         updatePointDisplayAndButton(); // Initial check
 
-        // NEW: Add event listeners for all slider inputs
+        // Add event listeners for all slider inputs
         bieresSlider.addEventListener('input', () => {
             bieresValueSpan.textContent = bieresSlider.value;
             updatePointDisplayAndButton();
