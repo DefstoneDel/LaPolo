@@ -77,7 +77,7 @@
             box-shadow: 0 3px #3c4452;
         }
 
-        .auth-button {
+        .auth-button { /* Kept for styling, but less used */
             background-color: #e94560; /* Red for auth */
             color: #ffffff;
             box-shadow: 0 3px #cc3a52;
@@ -140,10 +140,7 @@
             <button id="edit-username-button" class="ml-2 text-pink-400 hover:text-pink-300 text-xs font-bold py-1 px-2 rounded-md border border-pink-400 hidden" onclick="showEditUsernameModal()">Modifier</button>
         </div>
         <div>
-            <!-- This button remains for explicit email/password login/signup -->
-            <button id="auth-toggle" class="auth-button text-sm p-2 rounded-lg" onclick="showAuthModal(true)">
-                Connexion / Inscription
-            </button>
+            <!-- Removed the old "Connexion / Inscription" button -->
         </div>
     </div>
     
@@ -175,34 +172,7 @@
     </div>
 </div>
 
-<!-- Authentication Modal (for Email/Password login/signup) -->
-<div id="auth-modal" class="modal">
-    <div class="modal-content">
-        <h2 id="auth-title" class="text-2xl font-bold mb-4 text-pink-400">Connexion</h2>
-        <form id="auth-form" onsubmit="handleAuthSubmit(event)">
-            <!-- Champ Nom d'utilisateur (remplace l'email) -->
-            <input type="text" id="auth-username" placeholder="Nom d'utilisateur" required 
-                   class="w-full p-3 mb-3 bg-gray-700 text-white border border-gray-600 rounded-lg focus:ring-pink-500 focus:border-pink-500">
-            <!-- Champ Mot de passe -->
-            <input type="password" id="auth-password" placeholder="Mot de passe" required 
-                   class="w-full p-3 mb-4 bg-gray-700 text-white border border-gray-600 rounded-lg focus:ring-pink-500 focus:border-pink-500">
-            
-            <p id="auth-error" class="text-red-400 mb-4 h-6"></p>
-
-            <button type="submit" id="submit-button" class="action-button w-full mb-3">
-                Se Connecter
-            </button>
-
-            <button type="button" class="auth-button w-full" onclick="toggleAuthMode()">
-                Pas encore de compte ? S'inscrire
-            </button>
-
-            <button type="button" class="action-button w-full mt-3" onclick="showAuthModal(false)">
-                Annuler
-            </button>
-        </form>
-    </div>
-</div>
+<!-- Removed the old Authentication Modal -->
 
 <!-- NEW: Edit Username Modal -->
 <div id="edit-username-modal" class="modal">
@@ -225,7 +195,7 @@
 <!-- LOGIQUE JAVASCRIPT INTÉGRÉE (contenu de script.js) -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"; // Removed signInWithCustomToken, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut
     import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // --- Firebase Setup (MANDATORY) ---
@@ -254,7 +224,8 @@
         ? JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}')
         : GITHUB_FIREBASE_CONFIG;
     // Le token d'authentification personnalisé n'est PAS disponible en dehors du Canvas.
-    const initialAuthToken = isCanvas ? (typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null) : null;
+    // initialAuthToken is no longer used, as we're solely relying on anonymous sign-in now.
+    const initialAuthToken = null; 
     
     // MODIFIED: This condition now correctly identifies an *actual* placeholder or missing key.
     // Your provided API key is now treated as a valid configuration.
@@ -286,20 +257,14 @@
     const resultsDiv = document.getElementById('results');
     const startButton = document.getElementById('start-button');
     const authStatusDiv = document.getElementById('auth-status');
-    const authToggleButton = document.getElementById('auth-toggle');
+    // Removed authToggleButton
     const highScoreDiv = document.getElementById('high-score');
     const leaderboardDiv = document.getElementById('leaderboard'); 
-    const editUsernameButton = document.getElementById('edit-username-button'); // NEW
+    const editUsernameButton = document.getElementById('edit-username-button'); 
 
     let centerX, centerY, radiusX, radiusY;
 
-    // Auth Modal Elements
-    const authModal = document.getElementById('auth-modal');
-    const authTitle = document.getElementById('auth-title');
-    const authError = document.getElementById('auth-error');
-    const submitButton = document.getElementById('submit-button');
-    const authForm = document.getElementById('auth-form');
-    let isSigningUp = false;
+    // Removed Auth Modal Elements
 
     // NEW: Edit Username Modal Elements
     const editUsernameModal = document.getElementById('edit-username-modal');
@@ -454,7 +419,7 @@
         if (isGithubPlaceholder || !db) return;
         try {
             const profileDocRef = doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data');
-            await setDoc(profileDocRef, { username: username, createdAt: new Date().toISOString() });
+            await setDoc(profileDocRef, { username: username, createdAt: new Date().toISOString() }, { merge: true }); // Merge true to not overwrite other fields
         } catch (error) {
             console.error("Erreur lors de la sauvegarde du profil:", error);
         }
@@ -466,11 +431,8 @@
     function updateAuthUI(user) {
         if (isGithubPlaceholder) {
             authStatusDiv.querySelector('span').textContent = 'Mode Local (Scores non sauvegardés).';
-            authToggleButton.textContent = 'Connexion (Désactivée)';
-            authToggleButton.disabled = true;
-            authToggleButton.classList.add('disabled-button');
-            highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours (Local)`;
             editUsernameButton.style.display = 'none'; // Hide edit button in placeholder mode
+            highScoreDiv.textContent = `Meilleur Score: ${currentHighScore} tours (Local)`;
             return;
         }
 
@@ -478,42 +440,23 @@
             userId = user.uid;
             
             fetchUserProfile(user.uid).then(username => {
-                currentUsername = username;
+                currentUsername = username; // Update currentUsername from profile
                 
-                // MODIFIED: Display for anonymous users with or without a set username
-                if (user.isAnonymous) {
-                    authStatusDiv.querySelector('span').innerHTML = `Connecté comme : <span class="text-pink-400">${username || 'Anonyme'}</span>`;
-                    editUsernameButton.style.display = 'inline-block'; // Show edit button for anonymous users
-                } else {
-                    // For persistent users (email/password), show their name or email
-                    authStatusDiv.querySelector('span').innerHTML = `Connecté comme : <span class="text-pink-400">${username || user.email || 'Utilisateur'}</span>`;
-                    editUsernameButton.style.display = 'none'; // Hide edit button for persistent users
-                }
+                authStatusDiv.querySelector('span').innerHTML = `Connecté comme : <span class="text-pink-400">${username || 'Anonyme'}</span>`;
+                editUsernameButton.style.display = 'inline-block'; // Always show edit button for anonymous users
             });
             
-            // 2. Update UI controls for main auth button
-            authToggleButton.textContent = 'Déconnexion';
-            authToggleButton.classList.remove('auth-button', 'disabled-button');
-            authToggleButton.classList.add('action-button');
-            authToggleButton.disabled = false;
-            authToggleButton.onclick = signOutUser;
+            // 2. No main auth toggle anymore, only for editing username
             
             // 3. Load game data
             fetchHighScore(); 
             fetchGlobalLeaderboard(); 
         } else {
-            // User is not logged in (should ideally not happen with anonymous auto-signin)
+            // User is not logged in, but anonymous auto-signin should prevent this state
             userId = null;
             currentUsername = null;
             currentHighScore = 0;
             authStatusDiv.querySelector('span').textContent = 'Non connecté. Connectez-vous pour sauvegarder votre score.';
-            
-            authToggleButton.textContent = 'Connexion / Inscription';
-            authToggleButton.classList.remove('action-button', 'disabled-button');
-            authToggleButton.classList.add('auth-button');
-            authToggleButton.disabled = false;
-            authToggleButton.onclick = () => showAuthModal(true);
-            
             highScoreDiv.textContent = 'Meilleur Score: 0 tours';
             editUsernameButton.style.display = 'none'; // Hide edit button if not logged in
         }
@@ -541,19 +484,16 @@
             // Listen for auth state changes
             onAuthStateChanged(auth, async (user) => {
                 if (!user) {
-                    // If no user is logged in (e.g., after signOutUser), sign in anonymously immediately
+                    // If no user is logged in (e.g., after a manual clear storage), sign in anonymously immediately
                     await signInAnonymously(auth);
                 } else {
                     updateAuthUI(user);
                 }
             });
 
-            // This initial anonymous sign-in will trigger onAuthStateChanged
-            // Only do this if not already signed in or using a custom token
-            if (!auth.currentUser && !initialAuthToken) {
+            // Ensure an anonymous user is signed in right away if not already
+            if (!auth.currentUser) {
                  await signInAnonymously(auth);
-            } else if (initialAuthToken) { // If there's a custom token, use it
-                await signInWithCustomToken(auth, initialAuthToken);
             }
         } catch (error) {
             console.error("Erreur fatale lors de l'initialisation de Firebase:", error);
@@ -563,91 +503,10 @@
         }
     }
 
-    window.showAuthModal = (show) => {
-        if (isGithubPlaceholder) {
-            // Cannot open modal if Auth is disabled
-            return;
-        }
-        authModal.style.display = show ? 'flex' : 'none';
-        authError.textContent = '';
-        if (show) {
-             isSigningUp = false;
-             authTitle.textContent = 'Connexion';
-             submitButton.textContent = 'Se Connecter';
-             document.getElementById('auth-username').value = ''; 
-             document.getElementById('auth-password').value = '';
-        }
-    };
+    // Removed window.showAuthModal, window.toggleAuthMode, window.handleAuthSubmit
 
-    window.toggleAuthMode = () => {
-        isSigningUp = !isSigningUp;
-        authTitle.textContent = isSigningUp ? 'Inscription' : 'Connexion';
-        submitButton.textContent = isSigningUp ? 'S\'inscrire' : 'Se Connecter';
-        
-        const toggleButton = authForm ? authForm.querySelector('button:nth-of-type(2)') : null;
-        
-        if (toggleButton) {
-            toggleButton.textContent = isSigningUp ? 'Déjà un compte ? Se Connecter' : 'Pas encore de compte ? S\'inscrire';
-        } else {
-             console.error("Impossible de trouver le bouton bascule d'authentification.");
-        }
-        authError.textContent = '';
-    };
-
-    window.handleAuthSubmit = async (event) => {
-        event.preventDefault();
-        const username = document.getElementById('auth-username').value.trim();
-        const password = document.getElementById('auth-password').value;
-        authError.textContent = '';
-        
-        if (isGithubPlaceholder || !auth) {
-            authError.textContent = 'Erreur: La base de données n\'est pas configurée pour l\'authentification.';
-            return;
-        }
-
-        if (username.length < 3) {
-            authError.textContent = 'Le nom d\'utilisateur doit contenir au moins 3 caractères.';
-            return;
-        }
-        
-        // Use a mock email based on the username and app ID
-        const mockEmail = username + '@' + appId + '.myth.com';
-
-        try {
-            let userCredential;
-            if (isSigningUp) {
-                userCredential = await createUserWithEmailAndPassword(auth, mockEmail, password);
-                await saveUserProfile(userCredential.user.uid, username); // Save username for persistent account
-                console.log("Inscription réussie!");
-            } else {
-                userCredential = await signInWithEmailAndPassword(auth, mockEmail, password);
-                console.log("Connexion réussie!");
-            }
-            showAuthModal(false);
-        } catch (error) {
-            console.error("Erreur d'authentification:", error);
-            let errorMessage = "Erreur inconnue. Vérifiez votre nom d'utilisateur et mot de passe.";
-            
-            if (error.code && error.code.includes('auth/')) {
-                if (error.code === 'auth/weak-password') errorMessage = 'Le mot de passe doit contenir au moins 6 caractères.';
-                if (error.code === 'auth/email-already-in-use') errorMessage = 'Ce nom d\'utilisateur est déjà utilisé. Veuillez vous connecter.';
-                if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') errorMessage = 'Nom d\'utilisateur ou mot de passe incorrect.';
-                if (error.code === 'auth/operation-not-allowed') errorMessage = 'L\'authentification Email/Mot de passe n\'est pas activée. Veuillez contacter l\'administrateur.';
-            }
-            authError.textContent = errorMessage;
-        }
-    };
-
-    window.signOutUser = async () => {
-        if (isGithubPlaceholder || !auth) return;
-        try {
-            await signOut(auth);
-            // After signing out, onAuthStateChanged will detect no user and re-sign in anonymously
-            console.log("Déconnexion réussie. Reconnexion anonyme.");
-        } catch (error) {
-            console.error("Erreur de déconnexion:", error);
-        }
-    };
+    // window.signOutUser is no longer directly exposed via a button, but could be used internally if needed.
+    // For this anonymous-first flow, users don't "sign out" in the traditional sense.
 
     // NEW: Functions for Edit Username Modal
     window.showEditUsernameModal = () => {
@@ -676,7 +535,7 @@
                 await saveUserProfile(auth.currentUser.uid, newUsername);
                 currentUsername = newUsername; // Update local state
                 updateAuthUI(auth.currentUser); // Refresh UI to show new name
-                fetchGlobalLeaderboard(); // Refresh leaderboard with new name
+                fetchGlobalLeaderboard(); // Refresh leaderboard with new name (uses currentUsername)
                 editUsernameModal.style.display = 'none';
                 console.log("Nom d'utilisateur mis à jour:", newUsername);
             }
