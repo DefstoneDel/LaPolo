@@ -375,16 +375,16 @@
             if (querySnapshot.empty) {
                 html = '<p class="text-gray-400">Aucun score enregistré. Soyez le premier !</p>';
             } else {
-                querySnapshot.forEach((docSnap, index) => {
+                // FIX: Changed from forEach to a traditional for loop to ensure 'i' is always a number
+                for (let i = 0; i < querySnapshot.docs.length; i++) {
+                    const docSnap = querySnapshot.docs[i]; // Get the document snapshot
                     const data = docSnap.data();
                     
-                    const safeIndex = typeof index === 'number' ? index : 0; 
-                    const rank = safeIndex + 1; 
+                    // The 'i' from the for loop is guaranteed to be a sequential number (0, 1, 2...)
+                    const rank = i + 1; // Calculate rank from this reliable index
 
-                    // --- CRITICAL DEBUGGING LINE ---
-                    // This will tell us exactly what 'index' and 'rank' are for each entry
-                    console.log(`DEBUG: Leaderboard entry - index: ${index}, calculated rank: ${rank}, username: ${data.username || 'Unknown'}, score: ${data.maxLaps}`);
-                    // --- END CRITICAL DEBUGGING LINE ---
+                    // Debugging line (can be removed after verification)
+                    console.log(`DEBUG: Leaderboard entry - loop index: ${i}, calculated rank: ${rank}, username: ${data.username || 'Unknown'}, score: ${data.maxLaps}`);
 
                     // --- Start Medal and Rank Display Logic ---
                     let displayRankString;
@@ -416,7 +416,7 @@
                             <span class="text-lg font-bold text-teal-400">${data.maxLaps} tours</span>
                         </div>
                     `;
-                });
+                } // End of for loop
             }
             leaderboardDiv.innerHTML = html;
 
@@ -805,5 +805,6 @@
 
 </body>
 </html>
+
 
 
