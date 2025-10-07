@@ -376,7 +376,17 @@
             } else {
                 querySnapshot.forEach((docSnap, index) => {
                     const data = docSnap.data();
-                    const rank = index + 1;
+                    
+                    // --- FIX FOR #NaN IN RANKING ---
+                    // Defensive check: ensure index is a number. Default to 0 if not, though forEach should provide a number.
+                    const safeIndex = typeof index === 'number' ? index : 0; 
+                    const rank = safeIndex + 1; // Calculate rank from the now-guaranteed-numeric index
+                    // --- END FIX ---
+
+                    // Console log to verify rank during execution
+                    console.log(`DEBUG: Leaderboard entry - docId: ${docSnap.id}, index: ${index}, calculated rank: ${rank}`);
+
+
                     const medalColor = rank === 1 ? 'text-yellow-300' : rank === 2 ? 'text-gray-300' : 'text-yellow-600';
                     const rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉';
                     
@@ -711,7 +721,7 @@
         drawTrack();
         
         animationFrameId = requestAnimationFrame(gameLoop);
-    }
+    };
 
     window.runSimulation = () => {
         if (isRacing) return;
@@ -779,4 +789,3 @@
 
 </body>
 </html>
-
