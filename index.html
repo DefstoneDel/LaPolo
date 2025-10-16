@@ -635,41 +635,42 @@
     }
 
     async function initializeFirebase() {
-        if (isGithubPlaceholder) {
-            console.warn("⚠️ Mode GitHub sans configuration Firebase : La sauvegarde des scores et l'authentification sont désactivées.");
-            updateAuthUI(null); 
-            return;
-        }
-        
-        if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.apiKey) {
-            console.error("Erreur: Configuration Firebase incomplète.");
-            authStatusDiv.querySelector('span').textContent = 'ERREUR FIREBASE. Configuration manquante. Vérifiez la console.';
-            return;
-        }
+  if (isGithubPlaceholder) {
+    console.warn("⚠️ Mode GitHub sans configuration Firebase : La sauvegarde des scores et l'authentification sont désactivées.");
+    updateAuthUI(null);
+    return;
+  }
 
-        try {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app); 
+  if (!firebaseConfig.apiKey) {
+    console.error("Erreur: Configuration Firebase incomplète.");
+    authStatusDiv.querySelector('span').textContent = 'ERREUR FIREBASE. Configuration manquante.';
+    return;
+  }
 
-            onAuthStateChanged(auth, async (user) => {
-                if (!user) {
-                    await signInAnonymously(auth);
-                } else {
-                    updateAuthUI(user);
-                }
-            });
+  try {
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    auth = getAuth(app);
 
-            if (!auth.currentUser) {
-                 await signInAnonymously(auth);
-            }
-        } catch (error) {
-            console.error("Erreur fatale lors de l'initialisation de Firebase:", error);
-            authStatusDiv.querySelector('span').textContent = 'ERREUR FIREBASE FATALE. Vérifiez la console et votre configuration.';
-            db = null;
-            auth = null;
-        }
-    }
+    // 🟢 This line ensures the same anonymous user is reused each time
+    await setPersistence(auth, browserLocalPersistence);
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        console.log("User restored:", user.uid);
+        updateAuthUI(user);
+      } else {
+        console.log("No user — signing in anonymously...");
+        await signInAnonymously(auth);
+      }
+    });
+
+  } catch (error) {
+    console.error("Erreur fatale Firebase:", error);
+    authStatusDiv.querySelector('span').textContent = 'ERREUR FIREBASE. Vérifiez la console.';
+  }
+}
+
 
     window.showEditUsernameModal = () => {
         if (isGithubPlaceholder || !auth.currentUser) return;
@@ -1061,5 +1062,3 @@
 
 </body>
 </html>
-
-
