@@ -358,9 +358,12 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged, updateProfile, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+    // -------------------------------------------------------
+    // <-- IMPORTANT: replaced GITHUB placeholder config with the project you provided -->
+    // -------------------------------------------------------
     const GITHUB_FIREBASE_CONFIG = {
         apiKey: "AIzaSyBsRRKf93b6dmJlLlRWySiC8MrQZz5IOqM",
         authDomain: "lapolo-5351b.firebaseapp.com",
@@ -536,8 +539,6 @@
                     
                     const rank = i + 1;
 
-                    // console.log(`DEBUG: Leaderboard entry - loop index: ${i}, calculated rank: ${rank}, username: ${data.username || 'Unknown'}, score: ${data.maxLaps}`);
-
                     let displayRankString;
                     let medalColorClass;
 
@@ -551,7 +552,6 @@
                         displayRankString = '🥉 #3';
                         medalColorClass = 'text-amber-500';
                     } else {
-                        // This else block technically won't be hit with limit(3), but good for safety
                         displayRankString = `#${rank}`;
                         medalColorClass = 'text-gray-400';
                     }
